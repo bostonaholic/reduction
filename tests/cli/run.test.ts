@@ -335,6 +335,29 @@ describe('run hostile page bounds', () => {
     expect(JSON.parse(stdout.text).recipe.title).toBe('Chain Bomb');
   });
 
+  it('announces list truncation as banners rather than presenting a capped diagram as complete', async () => {
+    const n = 600;
+    const page = jsonLdPage({
+      '@context': 'https://schema.org',
+      '@type': 'Recipe',
+      name: 'Endless Buffet',
+      recipeIngredient: Array.from({ length: n }, (_, i) => `1 cup item${i}`),
+      recipeInstructions: Array.from({ length: n }, (_, i) => ({
+        '@type': 'HowToStep',
+        text: `Stir in the item${i}.`,
+      })),
+    });
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(page));
+    const { deps, stdout } = makeDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    const { recipe } = JSON.parse(stdout.text);
+    expect(recipe.banners).toContain('showing the first 500 of 600 ingredients');
+    expect(recipe.banners).toContain('showing the first 500 of 600 steps');
+  });
+
   // jsdom chews on the nesting for a while before overflowing; allow it.
   it('reports a page too deeply nested for jsdom as unparseable, without a stack trace', { timeout: 30_000 }, async () => {
     // jsdom recurses per ancestor while building the tree, so ~16,000 nested

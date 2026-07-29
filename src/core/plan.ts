@@ -132,7 +132,10 @@ export function treeFromPlan(plan: Plan, raw: RawRecipe, sourceUrl: string): Rec
   const matched = claimedIngredients.size;
   return {
     title: raw.title,
-    banners: plan.banners.map((b) => plainText(b)).filter(Boolean),
+    banners: [
+      ...(raw.truncationBanners ?? []),
+      ...plan.banners.map((b) => plainText(b)).filter(Boolean),
+    ],
     root,
     yield: raw.yield,
     sourceUrl,

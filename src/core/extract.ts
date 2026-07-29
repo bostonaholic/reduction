@@ -345,10 +345,24 @@ export function extractRecipe(doc: Document): RawRecipe {
       continue;
     }
     if (result && (result.ingredientLines.length > 0 || result.stepTexts.length > 0)) {
+      // Truncation must be loud: a capped list rendered without notice would
+      // present a partial diagram as the whole recipe.
+      const truncationBanners: string[] = [];
+      if (result.ingredientLines.length > MAX_INGREDIENT_LINES) {
+        truncationBanners.push(
+          `showing the first ${MAX_INGREDIENT_LINES} of ${result.ingredientLines.length} ingredients`,
+        );
+      }
+      if (result.stepTexts.length > MAX_STEP_TEXTS) {
+        truncationBanners.push(
+          `showing the first ${MAX_STEP_TEXTS} of ${result.stepTexts.length} steps`,
+        );
+      }
       return {
         ...result,
         ingredientLines: result.ingredientLines.slice(0, MAX_INGREDIENT_LINES),
         stepTexts: result.stepTexts.slice(0, MAX_STEP_TEXTS),
+        ...(truncationBanners.length > 0 ? { truncationBanners } : {}),
       };
     }
     attempts.push(`${name} found nothing`);

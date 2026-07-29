@@ -76,6 +76,29 @@ describe('extractRecipe size caps', () => {
 
     expect(raw.ingredientLines).toHaveLength(500);
     expect(raw.stepTexts).toHaveLength(500);
+    // Truncation is announced, not silent: the tree constructors turn these
+    // into leading banner rows on both the extension and the CLI.
+    expect(raw.truncationBanners).toEqual([
+      'showing the first 500 of 2000 ingredients',
+      'showing the first 500 of 2000 steps',
+    ]);
+  });
+
+  it('carries no truncation notice when nothing was dropped', () => {
+    const html = [
+      '<!doctype html><html><head><script type="application/ld+json">',
+      JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Recipe',
+        name: 'Small',
+        recipeIngredient: ['1 cup flour'],
+        recipeInstructions: [{ '@type': 'HowToStep', text: 'Mix the flour.' }],
+      }),
+      '</script></head><body></body></html>',
+    ].join('');
+    const doc = new JSDOM(html).window.document;
+
+    expect(extractRecipe(doc).truncationBanners).toBeUndefined();
   });
 });
 

@@ -290,7 +290,7 @@ function claimIngredients(matchers: Matcher[], stepText: string): RecipeNode[] {
  */
 export function inferTree(raw: RawRecipe, sourceUrl: string): Recipe {
   const matchers = buildMatchers(raw.ingredientLines);
-  const banners: string[] = [];
+  const banners: string[] = [...(raw.truncationBanners ?? [])];
   const pending: RecipeNode[] = [];
   // Read off the step text, not off the label: a step can put its output away
   // ("Refrigerate until ready to use") while the cell rightly names the mix.
@@ -467,7 +467,7 @@ export function flatTree(raw: RawRecipe, sourceUrl: string): Recipe {
   if (nodes.length === 0) {
     return {
       title: raw.title,
-      banners: raw.stepTexts.map(bannerText),
+      banners: [...(raw.truncationBanners ?? []), ...raw.stepTexts.map(bannerText)],
       root: null,
       yield: raw.yield,
       sourceUrl,
@@ -480,7 +480,7 @@ export function flatTree(raw: RawRecipe, sourceUrl: string): Recipe {
   let root: RecipeNode =
     nodes.length === 1 ? nodes[0] : { kind: 'op', label: 'combine', children: nodes, sourceStep: 0 };
 
-  const banners: string[] = [];
+  const banners: string[] = [...(raw.truncationBanners ?? [])];
   raw.stepTexts.forEach((text, index) => {
     if (isPrep(text)) {
       banners.push(bannerText(text));
