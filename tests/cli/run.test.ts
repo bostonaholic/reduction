@@ -13,6 +13,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ResvgModule } from '../../src/cli/render-png.js';
 import { run } from '../../src/cli/run.js';
 
 const PAGE_URL = 'https://example.test/brownies';
@@ -457,7 +458,7 @@ function binarySink() {
 
 function makeFormatDeps(
   fetch: (...args: any[]) => any,
-  options: { tty?: boolean; loadResvg?: () => Promise<unknown> } = {},
+  options: { tty?: boolean; loadResvg?: () => Promise<ResvgModule> } = {},
 ) {
   const stdout = binarySink();
   const stderr = sink();
@@ -569,6 +570,33 @@ describe('run --format png through the loadResvg seam', () => {
     expect(fetchPage).not.toHaveBeenCalled();
     expect(stderr.text).toContain('npm install @resvg/resvg-js');
     expect(stderr.text).toMatch(/omit=optional/);
+    expect(stdout.chunks).toHaveLength(0);
+  });
+
+  it('exits 2 with the path-free remedy when only the platform binding is missing', async () => {
+    // The wrapper resolves but its per-platform package does not (a
+    // node_modules copied across architectures, say): the inner require
+    // rethrows MODULE_NOT_FOUND, dragging a Require stack of absolute local
+    // paths into the message. Same remedy as the wrapper missing outright,
+    // so the same usage-error class — and none of those paths may print.
+    const missing = Object.assign(
+      new Error(
+        "Cannot find module '@resvg/resvg-js-darwin-arm64'\nRequire stack:\n- /home/someone/checkout/node_modules/@resvg/resvg-js/js-binding.js",
+      ),
+      { code: 'MODULE_NOT_FOUND' },
+    );
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, {
+      loadResvg: () => Promise.reject(missing),
+    });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(2);
+    expect(fetchPage).not.toHaveBeenCalled();
+    expect(stderr.text).toContain('npm install @resvg/resvg-js');
+    expect(stderr.text).not.toContain('/home/someone');
+    expect(stderr.text).not.toContain('Require stack');
     expect(stdout.chunks).toHaveLength(0);
   });
 

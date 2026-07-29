@@ -76,10 +76,11 @@ export interface RunDeps {
   stdoutIsTTY?: boolean;
   /**
    * Loads @resvg/resvg-js for png; injected so tests stub the native
-   * module. Typed as unknown so fakes need no native types; run() narrows
-   * it to the ResvgModule slice renderPng consumes.
+   * module without installing it. Typed as the module slice renderPng
+   * consumes, so a loader returning the wrong shape fails the type check
+   * in the fake, not as a TypeError at `new Resvg`.
    */
-  loadResvg?: () => Promise<unknown>;
+  loadResvg?: () => Promise<ResvgModule>;
 }
 
 export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
@@ -104,19 +105,25 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   }
 
   // resvg is an optional dependency, silent when its install is skipped, so
-  // the png path checks it loads before the fetch. Missing
-  // module -> usage error with the remedy; anything else (wrong-ABI binary,
-  // interrupted install) -> operational failure, one stripped line — a
-  // native load error carries absolute paths and loader text — with the
-  // reinstall hint subordinate to the real error.
-  const loadResvg = (deps.loadResvg ?? defaultLoadResvg) as () => Promise<ResvgModule>;
+  // the png path checks it loads before the fetch. A not-found module — the
+  // wrapper itself (ERR_MODULE_NOT_FOUND) or its per-platform native
+  // binding, whose inner require rethrows MODULE_NOT_FOUND with a Require
+  // stack of absolute local paths in the message — has one remedy, a
+  // reinstall, so both are usage errors and neither message is echoed.
+  // Anything else (wrong-ABI binary, interrupted install) -> operational
+  // failure, one stripped line — a native load error carries absolute paths
+  // and loader text — with the reinstall hint subordinate to the real error.
+  const loadResvg = deps.loadResvg ?? defaultLoadResvg;
   if (args.format === 'png') {
     try {
       await loadResvg();
     } catch (err) {
       const error = err as Error & { code?: string };
       const message = String(error.message ?? err);
-      if (error.code === 'ERR_MODULE_NOT_FOUND' && message.includes('@resvg/resvg-js')) {
+      if (
+        (error.code === 'ERR_MODULE_NOT_FOUND' || error.code === 'MODULE_NOT_FOUND') &&
+        message.includes('@resvg/resvg-js')
+      ) {
         stderr.write(
           '--format png needs the optional @resvg/resvg-js dependency; reinstall without --omit=optional, or run: npm install @resvg/resvg-js\n',
         );

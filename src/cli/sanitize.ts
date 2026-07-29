@@ -18,7 +18,14 @@
  */
 const UNPRINTABLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g;
 
-/** Strip characters that could manipulate a terminal from untrusted text. */
+/** The C0 whitespace controls; unlike the rest, these are word boundaries. */
+const WHITESPACE_CONTROLS = /[\t\n\v\f\r]+/g;
+
+/**
+ * Strip characters that could manipulate a terminal from untrusted text.
+ * Whitespace controls collapse to a single space rather than vanishing, so
+ * a multi-line message joined onto one line keeps its word boundaries.
+ */
 export function stripControls(text: string): string {
-  return text.replace(UNPRINTABLE, '');
+  return text.replace(WHITESPACE_CONTROLS, ' ').replace(UNPRINTABLE, '');
 }
