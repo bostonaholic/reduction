@@ -22,17 +22,29 @@ export interface ModelOption {
   effort?: 'low';
 }
 
+const OPUS_5: ModelOption = {
+  id: 'claude-opus-5',
+  label: 'Claude Opus 5 — recommended',
+  effort: 'low',
+};
+
 /**
  * The models offered in the options page. All of them support structured
  * outputs, which the flat-plan schema depends on; ordered most capable first.
  */
 export const MODELS: readonly ModelOption[] = [
-  { id: 'claude-opus-5', label: 'Claude Opus 5 — most accurate', effort: 'low' },
+  { id: 'claude-fable-5', label: 'Claude Fable 5 — most capable, highest cost', effort: 'low' },
+  OPUS_5,
   { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 — balanced', effort: 'low' },
   { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 — fastest and cheapest' },
 ];
 
-export const DEFAULT_MODEL = MODELS[0];
+/**
+ * Opus 5 rather than the head of the list: Fable 5 costs more per recipe than
+ * this tier is worth by default, and it is rejected outright for organisations
+ * on zero data retention, which we cannot detect from here.
+ */
+export const DEFAULT_MODEL = OPUS_5;
 
 /**
  * Look up a stored model id. Anything unrecognised — a hand-edited setting, or
@@ -87,7 +99,9 @@ export async function callClaude(
       max_tokens: 16000,
       system: SYSTEM,
       // Adaptive thinking with low effort: cheap and fast, and it avoids the
-      // failure modes that come with disabling thinking outright.
+      // failure modes that come with disabling thinking outright. Note the
+      // request deliberately sends no `thinking` block at all — Fable 5 rejects
+      // one, and every other model here defaults to what we would have asked for.
       output_config: {
         ...(model.effort ? { effort: model.effort } : {}),
         format: { type: 'json_schema', schema: PLAN_SCHEMA },

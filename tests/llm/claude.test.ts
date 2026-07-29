@@ -23,6 +23,14 @@ describe('resolveModel', () => {
     expect(resolveModel('claude-haiku-4-5').id).toBe('claude-haiku-4-5');
   });
 
+  it('defaults to Opus 5, not the head of the list', () => {
+    // Fable 5 leads the list because it is the most capable, but it costs more
+    // and is unavailable on zero-retention accounts, so it must not become the
+    // default by virtue of being first.
+    expect(DEFAULT_MODEL.id).toBe('claude-opus-5');
+    expect(MODELS[0].id).toBe('claude-fable-5');
+  });
+
   it('falls back to the default for an unset or unrecognised id', () => {
     // A hand-edited setting, or one this version no longer offers, should not
     // reach the API and 404 — it should quietly become the default.
@@ -48,6 +56,13 @@ describe('callClaude', () => {
     const body = await requestBodyFor('claude-haiku-4-5');
     expect(body.output_config).not.toHaveProperty('effort');
     expect(body.output_config.format.type).toBe('json_schema');
+  });
+
+  it('never sends a thinking block, which Fable 5 rejects', async () => {
+    for (const model of MODELS) {
+      const body = await requestBodyFor(model.id);
+      expect(body).not.toHaveProperty('thinking');
+    }
   });
 
   it('always asks for the plan schema', async () => {
