@@ -57,8 +57,8 @@ async function renderAndMeasure(page: Page, bundle: string): Promise<Rendered> {
   try {
     await page.waitForFunction(
       () => {
-        const host = document.getElementById('recipart-overlay-host');
-        return !!host?.shadowRoot?.querySelector('.rp-table, .rp-error');
+        const host = document.getElementById('reduction-overlay-host');
+        return !!host?.shadowRoot?.querySelector('.rd-table, .rd-error');
       },
       { timeout: 20_000 },
     );
@@ -67,10 +67,10 @@ async function renderAndMeasure(page: Page, bundle: string): Promise<Rendered> {
   }
 
   return page.evaluate(() => {
-    const shadow = document.getElementById('recipart-overlay-host')!.shadowRoot!;
-    if (shadow.querySelector('.rp-error')) return { ok: false, reason: 'no recipe found' };
+    const shadow = document.getElementById('reduction-overlay-host')!.shadowRoot!;
+    if (shadow.querySelector('.rd-error')) return { ok: false, reason: 'no recipe found' };
 
-    const table = shadow.querySelector('.rp-table') as HTMLTableElement;
+    const table = shadow.querySelector('.rd-table') as HTMLTableElement;
     const rows = Array.from(table.rows);
 
     // Re-derive the occupancy grid from the rendered DOM: this checks the
@@ -99,13 +99,13 @@ async function renderAndMeasure(page: Page, bundle: string): Promise<Rendered> {
 
     return {
       ok: true,
-      title: (shadow.querySelector('.rp-title')?.textContent ?? '').slice(0, 60),
-      confidence: shadow.querySelector('.rp-badge')?.textContent?.split(' ')[0],
+      title: (shadow.querySelector('.rd-title')?.textContent ?? '').slice(0, 60),
+      confidence: shadow.querySelector('.rd-badge')?.textContent?.split(' ')[0],
       rows: rows.length,
       cols,
-      ingredients: table.querySelectorAll('.rp-ingredient').length,
-      ops: table.querySelectorAll('.rp-op').length,
-      banners: table.querySelectorAll('.rp-banner').length,
+      ingredients: table.querySelectorAll('.rd-ingredient').length,
+      ops: table.querySelectorAll('.rd-op').length,
+      banners: table.querySelectorAll('.rd-banner').length,
       tiles,
     };
   });
@@ -130,9 +130,9 @@ test('renders a Cooking For Engineers table on popular recipe sites', async ({ b
         await page.waitForTimeout(2500); // Let client-rendered recipe modules attach.
         result = await renderAndMeasure(page, bundle);
         if (result.ok) {
-          const host = page.locator('#recipart-overlay-host');
+          const host = page.locator('#reduction-overlay-host');
           await host
-            .locator('.rp-panel')
+            .locator('.rd-panel')
             .screenshot({ path: join(SHOTS, `${name}.png`) })
             .catch(() => undefined);
         }

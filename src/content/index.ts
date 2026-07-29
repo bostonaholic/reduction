@@ -17,7 +17,7 @@ import type { ClaudeReply, Message } from '../messages.js';
 import type { Grid, Recipe } from '../core/types.js';
 import styles from './overlay.css';
 
-const HOST_ID = 'recipart-overlay-host';
+const HOST_ID = 'reduction-overlay-host';
 
 /** Below this, the local heuristics are not trustworthy enough to show alone. */
 const CLAUDE_THRESHOLD = 0.6;
@@ -58,14 +58,14 @@ function escape(text: string): string {
 function showError(shadow: ShadowRoot, message: string): void {
   shadow.appendChild(
     element(`
-      <div class="rp-backdrop">
-        <div class="rp-panel">
-          <div class="rp-head">
-            <h2 class="rp-title">No recipe found on this page</h2>
-            <div class="rp-actions"><button class="rp-btn" data-act="close">Close</button></div>
+      <div class="rd-backdrop">
+        <div class="rd-panel">
+          <div class="rd-head">
+            <h2 class="rd-title">No recipe found on this page</h2>
+            <div class="rd-actions"><button class="rd-btn" data-act="close">Close</button></div>
           </div>
-          <div class="rp-error">
-            Recipart looks for a schema.org recipe, then microdata, then an
+          <div class="rd-error">
+            Reduction looks for a schema.org recipe, then microdata, then an
             ingredients list under a heading. None of those turned up here.
             <br /><br /><code>${escape(message)}</code>
           </div>
@@ -84,7 +84,7 @@ function element(html: string): Element {
 
 function wireClose(shadow: ShadowRoot): void {
   shadow.querySelector('[data-act="close"]')?.addEventListener('click', () => removeExisting());
-  shadow.querySelector('.rp-backdrop')?.addEventListener('click', (event) => {
+  shadow.querySelector('.rd-backdrop')?.addEventListener('click', (event) => {
     if (event.target === event.currentTarget) removeExisting();
   });
   document.addEventListener(
@@ -98,31 +98,31 @@ function wireClose(shadow: ShadowRoot): void {
 
 function showTable(shadow: ShadowRoot, recipe: Recipe, grid: Grid): void {
   const note = confidenceNote(recipe);
-  const servings = recipe.yield ? `<span class="rp-meta">${escape(recipe.yield)}</span>` : '';
+  const servings = recipe.yield ? `<span class="rd-meta">${escape(recipe.yield)}</span>` : '';
 
   shadow.appendChild(
     element(`
-      <div class="rp-backdrop">
-        <div class="rp-panel">
-          <div class="rp-head">
-            <h2 class="rp-title">${escape(recipe.title)}</h2>
+      <div class="rd-backdrop">
+        <div class="rd-panel">
+          <div class="rd-head">
+            <h2 class="rd-title">${escape(recipe.title)}</h2>
             ${servings}
-            <span class="rp-badge ${note.level}">${note.level} confidence</span>
-            <div class="rp-actions">
-              <button class="rp-btn" data-act="png">PNG</button>
-              <button class="rp-btn" data-act="svg">SVG</button>
-              <button class="rp-btn primary" data-act="print">Print</button>
-              <button class="rp-btn" data-act="close">Close</button>
+            <span class="rd-badge ${note.level}">${note.level} confidence</span>
+            <div class="rd-actions">
+              <button class="rd-btn" data-act="png">PNG</button>
+              <button class="rd-btn" data-act="svg">SVG</button>
+              <button class="rd-btn primary" data-act="print">Print</button>
+              <button class="rd-btn" data-act="close">Close</button>
             </div>
           </div>
-          <div class="rp-note">${escape(note.text)}</div>
-          <div class="rp-scroll">${renderTable(recipe, grid)}</div>
+          <div class="rd-note">${escape(note.text)}</div>
+          <div class="rd-scroll">${renderTable(recipe, grid)}</div>
         </div>
       </div>
     `),
   );
 
-  const table = shadow.querySelector('.rp-table') as HTMLTableElement | null;
+  const table = shadow.querySelector('.rd-table') as HTMLTableElement | null;
 
   shadow.querySelector('[data-act="print"]')?.addEventListener('click', () => {
     const message: Message = {

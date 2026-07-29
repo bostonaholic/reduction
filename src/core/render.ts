@@ -27,7 +27,7 @@ export function renderTable(recipe: Recipe, grid: Grid): string {
             cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : '',
             cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : '',
           ].join('');
-          return `<td class="rp-${cell.kind}"${span}>${escapeHtml(cell.text)}</td>`;
+          return `<td class="rd-${cell.kind}"${span}>${escapeHtml(cell.text)}</td>`;
         })
         .join('');
       return `<tr>${tds}</tr>`;
@@ -35,10 +35,10 @@ export function renderTable(recipe: Recipe, grid: Grid): string {
     .join('');
 
   const caption = recipe.title
-    ? `<caption class="rp-caption">${escapeHtml(recipe.title)}</caption>`
+    ? `<caption class="rd-caption">${escapeHtml(recipe.title)}</caption>`
     : '';
 
-  return `<table class="rp-table">${caption}<tbody>${rows}</tbody></table>`;
+  return `<table class="rd-table">${caption}<tbody>${rows}</tbody></table>`;
 }
 
 /** How the parse went, in one honest sentence. */

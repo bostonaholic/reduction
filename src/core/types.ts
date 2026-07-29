@@ -1,5 +1,5 @@
 /**
- * Core data model for Recipart.
+ * Core data model for Reduction.
  *
  * A Cooking For Engineers table is a left-to-right rendering of a tree:
  * leaves are ingredients (one row each), internal nodes are operations, an

@@ -19,21 +19,21 @@ const PRINT_CSS = `
     color: #16211a;
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   }
-  .rp-doc-title {
+  .rd-doc-title {
     font-size: 21px;
     margin: 0 0 4px;
   }
-  .rp-doc-meta {
+  .rd-doc-meta {
     font-size: 12.5px;
     color: #6b7268;
     margin: 0 0 18px;
   }
-  .rp-doc-meta a { color: #3d6b3f; }
-  .rp-caption { display: none; }
+  .rd-doc-meta a { color: #3d6b3f; }
+  .rd-caption { display: none; }
   @media print {
     body { padding: 0; }
-    .rp-doc-meta a { text-decoration: none; }
-    .rp-table { page-break-inside: avoid; }
+    .rd-doc-meta a { text-decoration: none; }
+    .rd-table { page-break-inside: avoid; }
     @page { margin: 12mm; }
   }
 `;
@@ -50,8 +50,8 @@ export function printableDocument(recipe: Recipe, grid: Grid, sharedCss: string)
 <style>${PRINT_CSS}</style>
 </head>
 <body>
-<h1 class="rp-doc-title">${escapeHtml(recipe.title)}</h1>
-<p class="rp-doc-meta">${escapeHtml(new URL(recipe.sourceUrl).hostname)}${servings}</p>
+<h1 class="rd-doc-title">${escapeHtml(recipe.title)}</h1>
+<p class="rd-doc-meta">${escapeHtml(new URL(recipe.sourceUrl).hostname)}${servings}</p>
 ${renderTable(recipe, grid)}
 </body>
 </html>`;

@@ -70,7 +70,7 @@ it('reports pipeline quality across every captured site', () => {
     rows.push(line);
   }
 
-  process.stdout.write(`\n${'='.repeat(100)}\nRECIPART PIPELINE REPORT — ${names.length} sites\n${'='.repeat(100)}\n`);
+  process.stdout.write(`\n${'='.repeat(100)}\nREDUCTION PIPELINE REPORT — ${names.length} sites\n${'='.repeat(100)}\n`);
   process.stdout.write(rows.join("\n") + "\n");
   process.stdout.write(
     `\nmean confidence ${((totalConfidence / names.length) * 100).toFixed(0)}%   ` +

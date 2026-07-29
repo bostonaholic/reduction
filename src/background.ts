@@ -16,7 +16,7 @@ chrome.action.onClicked.addListener(async (tab) => {
   } catch (err) {
     // Chrome refuses injection on its own pages and the Web Store; say so
     // rather than failing silently.
-    console.warn('Recipart could not run on this page:', err);
+    console.warn('Reduction could not run on this page:', err);
   }
 });
 

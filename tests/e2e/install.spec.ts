@@ -17,7 +17,7 @@ let context: BrowserContext;
 let profileDir: string;
 
 test.beforeAll(async () => {
-  profileDir = await mkdtemp(join(tmpdir(), 'recipart-profile-'));
+  profileDir = await mkdtemp(join(tmpdir(), 'reduction-profile-'));
   context = await chromium.launchPersistentContext(profileDir, {
     // Extensions need Chromium's new headless mode; the old one ignores them.
     channel: 'chromium',
@@ -48,7 +48,7 @@ test('exposes a working options page', async () => {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/options.html`);
 
-  await expect(page.locator('h1')).toHaveText('Recipart');
+  await expect(page.locator('h1')).toHaveText('Reduction');
   await expect(page.locator('#key')).toBeVisible();
 
   // The key round-trips through extension storage.

@@ -5,7 +5,7 @@
   all: initial;
 }
 
-.rp-backdrop {
+.rd-backdrop {
   position: fixed;
   inset: 0;
   z-index: 2147483647;
@@ -19,7 +19,7 @@
   -webkit-font-smoothing: antialiased;
 }
 
-.rp-panel {
+.rd-panel {
   background: #fffdf3;
   border-radius: 10px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
@@ -28,7 +28,7 @@
   overflow: hidden;
 }
 
-.rp-head {
+.rd-head {
   display: flex;
   align-items: baseline;
   gap: 14px;
@@ -37,7 +37,7 @@
   border-bottom: 1px solid #e3e0d2;
 }
 
-.rp-title {
+.rd-title {
   font-size: 19px;
   font-weight: 700;
   color: #1d2a1d;
@@ -46,12 +46,12 @@
   line-height: 1.3;
 }
 
-.rp-meta {
+.rd-meta {
   font-size: 12px;
   color: #6b7268;
 }
 
-.rp-badge {
+.rd-badge {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -61,26 +61,26 @@
   white-space: nowrap;
 }
 
-.rp-badge.high {
+.rd-badge.high {
   background: #dff0d8;
   color: #2c6a2c;
 }
-.rp-badge.moderate {
+.rd-badge.moderate {
   background: #fcf0d0;
   color: #8a6300;
 }
-.rp-badge.low {
+.rd-badge.low {
   background: #f8dcd8;
   color: #97392c;
 }
 
-.rp-actions {
+.rd-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.rp-btn {
+.rd-btn {
   font: inherit;
   font-size: 13px;
   padding: 6px 12px;
@@ -92,35 +92,35 @@
   line-height: 1.4;
 }
 
-.rp-btn:hover {
+.rd-btn:hover {
   background: #f1f3ee;
 }
 
-.rp-btn.primary {
+.rd-btn.primary {
   background: #2f7a37;
   border-color: #2f7a37;
   color: #fff;
 }
 
-.rp-btn.primary:hover {
+.rd-btn.primary:hover {
   background: #276b2e;
 }
 
-.rp-note {
+.rd-note {
   padding: 10px 22px;
   font-size: 12.5px;
   color: #6b7268;
   border-bottom: 1px solid #ece9dc;
 }
 
-.rp-scroll {
+.rd-scroll {
   padding: 20px 22px 24px;
   overflow-x: auto;
 }
 
 /* The table itself — this is the Cooking For Engineers look. */
 
-.rp-table {
+.rd-table {
   border-collapse: collapse;
   width: 100%;
   background: #fff;
@@ -131,46 +131,46 @@
 
 /* The panel header already names the recipe. The caption stays in the markup
    for the standalone print and export documents, where nothing else does. */
-.rp-caption {
+.rd-caption {
   display: none;
 }
 
-.rp-table td {
+.rd-table td {
   border: 2px solid #3d8b40;
   padding: 7px 10px;
   vertical-align: middle;
   line-height: 1.35;
 }
 
-.rp-banner {
+.rd-banner {
   text-align: center;
   font-weight: 500;
 }
 
-.rp-ingredient {
+.rd-ingredient {
   text-align: left;
   min-width: 220px;
 }
 
-.rp-op {
+.rd-op {
   text-align: center;
   font-weight: 500;
   min-width: 62px;
 }
 
-.rp-filler {
+.rd-filler {
   border: 2px solid #3d8b40;
   background: #fff;
 }
 
-.rp-error {
+.rd-error {
   padding: 26px 22px 30px;
   color: #7a3229;
   font-size: 14.5px;
   line-height: 1.5;
 }
 
-.rp-error code {
+.rd-error code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12.5px;
   color: #55605a;

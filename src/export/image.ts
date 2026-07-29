@@ -79,7 +79,7 @@ function readGeometry(table: HTMLTableElement): Geometry {
     const rect = cell.getBoundingClientRect();
     const x = rect.left - tableRect.left;
     const y = rect.top - tableRect.top;
-    const centered = !cell.classList.contains('rp-ingredient');
+    const centered = !cell.classList.contains('rd-ingredient');
     const content = (cell.textContent ?? '').trim();
 
     const box: Box = { x, y, w: rect.width, h: rect.height, lines: [] };

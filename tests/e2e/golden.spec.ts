@@ -55,8 +55,8 @@ async function render(page: Page, bundle: string, name: string): Promise<void> {
   await page.goto(pathToFileURL(join(PAGES, `${name}.html`)).href);
   await page.evaluate(bundle);
   await page.waitForFunction(() => {
-    const host = document.getElementById('recipart-overlay-host');
-    return !!host?.shadowRoot?.querySelector('.rp-table');
+    const host = document.getElementById('reduction-overlay-host');
+    return !!host?.shadowRoot?.querySelector('.rd-table');
   });
   // Web fonts and layout settle before we measure anything.
   await page.evaluate(() => document.fonts.ready);
@@ -68,7 +68,7 @@ test.describe('golden master', () => {
       const bundle = await readFile(BUNDLE, 'utf8');
       await render(page, bundle, fixture.name);
 
-      const table = page.locator('#recipart-overlay-host .rp-table');
+      const table = page.locator('#reduction-overlay-host .rd-table');
       await expect(table).toBeVisible();
       await expect(table).toHaveScreenshot(`${fixture.name}-table.png`);
     });
@@ -80,7 +80,7 @@ test.describe('golden master', () => {
       // Go through the real button, so the export path is tested end to end.
       const [download] = await Promise.all([
         page.waitForEvent('download'),
-        page.locator('#recipart-overlay-host [data-act="png"]').click(),
+        page.locator('#reduction-overlay-host [data-act="png"]').click(),
       ]);
 
       const path = await download.path();
@@ -134,8 +134,8 @@ test('golden fixtures produce the expected table structure', async ({ page }) =>
 
     actual[name] = await page.evaluate(() => {
       const table = document
-        .getElementById('recipart-overlay-host')!
-        .shadowRoot!.querySelector('.rp-table') as HTMLTableElement;
+        .getElementById('reduction-overlay-host')!
+        .shadowRoot!.querySelector('.rd-table') as HTMLTableElement;
       const rows = Array.from(table.rows);
       const cols = Math.max(
         ...rows.map((r) => Array.from(r.cells).reduce((n, c) => n + c.colSpan, 0)),
@@ -143,7 +143,7 @@ test('golden fixtures produce the expected table structure', async ({ page }) =>
       return {
         rows: rows.length,
         cols,
-        banners: table.querySelectorAll('.rp-banner').length,
+        banners: table.querySelectorAll('.rd-banner').length,
       };
     });
   }

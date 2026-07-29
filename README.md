@@ -1,4 +1,4 @@
-# Recipart
+# Reduction
 
 A Chrome extension that turns any recipe page into a [Cooking For
 Engineers](https://www.cookingforengineers.com/) style tabular diagram —
