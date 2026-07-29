@@ -122,6 +122,29 @@ test.describe('golden master', () => {
 });
 
 /**
+ * The SVG export feeds no screenshot, so its one behavioral promise — the
+ * attribution band links back to the source page — is pinned by content.
+ */
+test('brownies SVG export links back to the source page', async ({ page }) => {
+  const bundle = await readFile(BUNDLE, 'utf8');
+  await render(page, bundle, 'brownies');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#reduction-overlay-host [data-act="svg"]').click(),
+  ]);
+
+  const path = await download.path();
+  expect(path, 'SVG export produced no file').toBeTruthy();
+  const svg = await readFile(path!, 'utf8');
+
+  const url = 'http://golden.local/brownies.html';
+  expect(svg).toContain(`href="${url}"`);
+  // Once in the href, once as the visible band text.
+  expect(svg.split(url).length - 1).toBe(2);
+});
+
+/**
  * Structural assertions alongside the pixels. When a golden fails, these say
  * whether the diagram is genuinely wrong or merely moved.
  */

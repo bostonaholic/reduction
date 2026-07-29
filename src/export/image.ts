@@ -129,6 +129,16 @@ function readGeometry(table: HTMLTableElement): Geometry {
   return { width: tableRect.width, height: tableRect.height, font, fontSize, boxes };
 }
 
+/** Only http(s) URLs earn a link — anything else stays inert text. */
+function isHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function escapeXml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -138,13 +148,18 @@ function escapeXml(text: string): string {
 }
 
 /** A standalone SVG of the table — scalable, tiny, and text stays selectable. */
-export function toSvg(table: HTMLTableElement): string {
+export function toSvg(table: HTMLTableElement, sourceUrl: string): string {
   const geo = readGeometry(table);
   const style = getComputedStyle(table);
   const family = escapeXml(style.fontFamily);
+  const url = sourceUrl.trim();
+  // The attribution band extends the output below the frame; the frame
+  // itself keeps the table's own height.
+  const bandHeight = url ? BAND_FONT + PAD * 2 : 0;
+  const outputHeight = Math.ceil(geo.height + bandHeight);
 
   const parts: string[] = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(geo.width)}" height="${Math.ceil(geo.height)}" viewBox="0 0 ${Math.ceil(geo.width)} ${Math.ceil(geo.height)}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(geo.width)}" height="${outputHeight}" viewBox="0 0 ${Math.ceil(geo.width)} ${outputHeight}">`,
     `<rect width="100%" height="100%" fill="#ffffff"/>`,
   ];
 
@@ -166,6 +181,18 @@ export function toSvg(table: HTMLTableElement): string {
   parts.push(
     `<rect x="1.5" y="1.5" width="${(geo.width - 3).toFixed(1)}" height="${(geo.height - 3).toFixed(1)}" fill="none" stroke="${BORDER}" stroke-width="3"/>`,
   );
+
+  if (bandHeight > 0) {
+    const truncated = truncateToWidth(
+      url,
+      Math.max(geo.width - PAD * 2, 20),
+      measurer(`${BAND_FONT}px ${style.fontFamily}`),
+    );
+    const text = `<text x="${(geo.width / 2).toFixed(1)}" y="${(geo.height + PAD + BAND_FONT * 0.82).toFixed(1)}" text-anchor="middle" font-family="${family}" font-size="${BAND_FONT}" fill="${BAND_COLOR}">${escapeXml(truncated)}</text>`;
+    // The link carries the full URL even when the visible text is truncated.
+    parts.push(isHttpUrl(url) ? `<a href="${escapeXml(url)}">${text}</a>` : text);
+  }
+
   parts.push('</svg>');
   return parts.join('\n');
 }

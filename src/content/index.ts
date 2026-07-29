@@ -133,7 +133,7 @@ function showTable(shadow: ShadowRoot, recipe: Recipe, grid: Grid): void {
   });
 
   shadow.querySelector('[data-act="svg"]')?.addEventListener('click', () => {
-    if (table) download(`${slug(recipe.title)}.svg`, toSvg(table), 'image/svg+xml');
+    if (table) download(`${slug(recipe.title)}.svg`, toSvg(table, recipe.sourceUrl), 'image/svg+xml');
   });
 
   shadow.querySelector('[data-act="png"]')?.addEventListener('click', async () => {
