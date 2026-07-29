@@ -144,8 +144,10 @@ foodnetwork     json-ld  ing 11  steps 6  banners 1  depth 5  12x6  conf 100%  o
 
 ### Golden master
 
-Six hand-written recipes in `tests/e2e/golden-pages/` are rendered and compared
-pixel-for-pixel against committed reference images. They are hand-written rather
+Six hand-written recipes in `tests/e2e/golden-pages/` — `brownies`, `parallel`,
+`banners`, `orphans`, `microdata`, and `heuristic` — are rendered and compared
+pixel-for-pixel against committed reference images (the seventh page there,
+`demo.html`, is the README screenshot subject and runs in no test). They are hand-written rather
 than captured so the inputs never drift: a failure always means *our* code
 changed, never that a publisher edited their page. Between them they cover all
 three extraction strategies and the tree shapes worth pinning — deep nesting,
