@@ -13,6 +13,7 @@ import { NoRecipeFound, extractRecipe } from '../core/extract.js';
 import { flatTree, inferTree } from '../core/infer.js';
 import { layout } from '../core/layout.js';
 import { confidenceNote, renderTable } from '../core/render.js';
+import { renderText } from '../core/render-text.js';
 import type { OutputFormat } from './args.js';
 
 /** Browser-mimicking request headers, the shape tools/capture-fixtures.mjs uses. */
@@ -89,8 +90,10 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   const grid = layout(recipe);
   if (args.format === 'json') {
     stdout.write(`${JSON.stringify({ recipe, grid, note: confidenceNote(recipe) })}\n`);
-  } else {
+  } else if (args.format === 'html') {
     stdout.write(`${renderTable(recipe, grid)}\n`);
+  } else {
+    stdout.write(renderText(recipe, grid, deps.width));
   }
   return 0;
 }

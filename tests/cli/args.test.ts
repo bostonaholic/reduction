@@ -27,13 +27,12 @@ describe('parseArgs', () => {
     });
   });
 
-  it('defaults the format to json', () => {
-    // Slice 1 default. Slice 2 introduces `text` and flips this assertion to
-    // `text` inside its own commit (plan slice 2, step 3) — a plan-scheduled
-    // change, not scope drift.
+  it('defaults the format to text', () => {
+    // Flipped from `json` when slice 2 introduced the text renderer — a
+    // plan-scheduled change (plan slice 2, step 3), not scope drift.
     expect(parseArgs(['https://example.test/brownies'])).toMatchObject({
       kind: 'run',
-      format: 'json',
+      format: 'text',
     });
   });
 

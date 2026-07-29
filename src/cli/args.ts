@@ -7,21 +7,22 @@
  * unit-tests without spawning a process.
  */
 
-export type OutputFormat = 'json' | 'html';
+export type OutputFormat = 'text' | 'json' | 'html';
 
-const FORMATS: readonly OutputFormat[] = ['json', 'html'];
+const FORMATS: readonly OutputFormat[] = ['text', 'json', 'html'];
 
 export type ParsedArgs =
   | { kind: 'run'; url: string; format: OutputFormat; claude: boolean }
   | { kind: 'help' }
   | { kind: 'error'; message: string };
 
-export const USAGE = `Usage: reduction <url> [--format json|html] [--help]
+export const USAGE = `Usage: reduction <url> [--format text|json|html] [--help]
 
 Fetch a recipe page and print it as a tabular diagram.
 
 Formats:
-  json   the recipe, grid, and confidence note as JSON (default)
+  text   a box-drawing table for the terminal (default)
+  json   the recipe, grid, and confidence note as JSON
   html   the same markup the extension renders
 
 Options:
@@ -30,7 +31,7 @@ Options:
 
 export function parseArgs(argv: string[]): ParsedArgs {
   let url: string | undefined;
-  let format: OutputFormat = 'json';
+  let format: OutputFormat = 'text';
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
