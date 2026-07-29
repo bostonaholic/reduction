@@ -6,7 +6,7 @@
  * API across origins, and open an extension page for printing.
  */
 
-import { callClaude } from './llm/claude.js';
+import { callClaude, resolveEffort, resolveModel } from './llm/claude.js';
 import { STORAGE_KEYS, type ClaudeReply, type Message } from './messages.js';
 
 chrome.action.onClicked.addListener(async (tab) => {
@@ -31,7 +31,12 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
   if (message.type === 'infer-with-claude') {
     // Returning true keeps the message channel open for the async reply.
     void (async () => {
-      const stored = await chrome.storage.local.get([STORAGE_KEYS.apiKey, STORAGE_KEYS.useClaude]);
+      const stored = await chrome.storage.local.get([
+        STORAGE_KEYS.apiKey,
+        STORAGE_KEYS.useClaude,
+        STORAGE_KEYS.model,
+        STORAGE_KEYS.effort,
+      ]);
       const apiKey = stored[STORAGE_KEYS.apiKey] as string | undefined;
       const enabled = stored[STORAGE_KEYS.useClaude] !== false;
 
@@ -40,8 +45,19 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
         return;
       }
 
+      const settings = {
+        apiKey,
+        model: resolveModel(stored[STORAGE_KEYS.model] as string | undefined),
+        effort: resolveEffort(stored[STORAGE_KEYS.effort] as string | undefined),
+      };
+
       try {
-        const tree = await callClaude(apiKey, message.title, message.ingredients, message.steps);
+        const tree = await callClaude(
+          settings,
+          message.title,
+          message.ingredients,
+          message.steps,
+        );
         sendResponse({ ok: true, tree } satisfies ClaudeReply);
       } catch (err) {
         sendResponse({ ok: false, error: (err as Error).message } satisfies ClaudeReply);

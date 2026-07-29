@@ -9,7 +9,85 @@
 import { PLAN_SCHEMA, type Plan } from '../core/plan.js';
 
 const ENDPOINT = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-opus-5';
+
+export interface ModelOption {
+  id: string;
+  /** Shown in the options page picker. */
+  label: string;
+  /**
+   * Whether the model accepts `output_config.effort`. Haiku 4.5 rejects the
+   * field outright, so for that model the request omits it and the options
+   * page disables the effort picker rather than pretending it applies.
+   */
+  supportsEffort: boolean;
+}
+
+const OPUS_5: ModelOption = {
+  id: 'claude-opus-5',
+  label: 'Claude Opus 5 — recommended',
+  supportsEffort: true,
+};
+
+/**
+ * The models offered in the options page. All of them support structured
+ * outputs, which the flat-plan schema depends on; ordered most capable first.
+ */
+export const MODELS: readonly ModelOption[] = [
+  {
+    id: 'claude-fable-5',
+    label: 'Claude Fable 5 — most capable, highest cost',
+    supportsEffort: true,
+  },
+  OPUS_5,
+  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 — balanced', supportsEffort: true },
+  {
+    id: 'claude-haiku-4-5',
+    label: 'Claude Haiku 4.5 — fastest and cheapest',
+    supportsEffort: false,
+  },
+];
+
+/**
+ * Opus 5 rather than the head of the list: Fable 5 costs more per recipe than
+ * this tier is worth by default, and it is rejected outright for organisations
+ * on zero data retention, which we cannot detect from here.
+ */
+export const DEFAULT_MODEL = OPUS_5;
+
+/** How hard the model works before answering. Every level below is valid on
+ * every model whose `supportsEffort` is true. */
+export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+export type Effort = (typeof EFFORTS)[number];
+
+export const EFFORT_LABELS: Record<Effort, string> = {
+  low: 'Low — fastest and cheapest',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra high',
+  max: 'Max — slowest and most expensive',
+};
+
+/**
+ * Low, because reading a recipe is not a hard reasoning problem: the local
+ * heuristics have already done the extraction, and all that is left is
+ * deciding which step consumes what. Raising it costs tokens for little gain.
+ */
+export const DEFAULT_EFFORT: Effort = 'low';
+
+/**
+ * Look up a stored model id. Anything unrecognised — a hand-edited setting, or
+ * an id this version no longer offers — falls back to the default rather than
+ * failing the request with a 404.
+ */
+export function resolveModel(id: string | undefined): ModelOption {
+  return MODELS.find((model) => model.id === id) ?? DEFAULT_MODEL;
+}
+
+/** As `resolveModel`, for the stored effort level. */
+export function resolveEffort(level: string | undefined): Effort {
+  return EFFORTS.find((effort) => effort === level) ?? DEFAULT_EFFORT;
+}
 
 const SYSTEM = `You convert recipes into the tabular diagram format used by Cooking For Engineers.
 
@@ -33,13 +111,21 @@ function buildPrompt(title: string, ingredients: string[], steps: string[]): str
   return `Recipe: ${title}\n\nIngredients (index: text)\n${ingredientList}\n\nInstructions (index: text)\n${stepList}`;
 }
 
+/** Everything the user chose in the options page that shapes the request. */
+export interface ClaudeSettings {
+  apiKey: string;
+  model: ModelOption;
+  effort: Effort;
+}
+
 /** Ask Claude for the plan. Throws with a usable message on any failure. */
 export async function callClaude(
-  apiKey: string,
+  settings: ClaudeSettings,
   title: string,
   ingredients: string[],
   steps: string[],
 ): Promise<Plan> {
+  const { apiKey, model, effort } = settings;
   const response = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {
@@ -50,13 +136,15 @@ export async function callClaude(
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: model.id,
       max_tokens: 16000,
       system: SYSTEM,
-      // Adaptive thinking with low effort: cheap and fast, and it avoids the
-      // failure modes that come with disabling thinking outright.
+      // The request deliberately sends no `thinking` block at all — Fable 5
+      // rejects one, and every other model here defaults to what we would have
+      // asked for. Depth is steered with effort instead, which Haiku 4.5 does
+      // not accept, hence the conditional.
       output_config: {
-        effort: 'low',
+        ...(model.supportsEffort ? { effort } : {}),
         format: { type: 'json_schema', schema: PLAN_SCHEMA },
       },
       messages: [{ role: 'user', content: buildPrompt(title, ingredients, steps) }],
