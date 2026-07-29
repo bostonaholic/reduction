@@ -146,7 +146,10 @@ surface you are editing; do not consolidate them. URL *policy* is shared
 Six hand-written recipes in `tests/e2e/golden-pages/` render to committed
 reference images. Two images per recipe, because they come from renderers that
 regress independently: the on-screen table (browser layout from our
-rowspan/colspan) and the exported PNG (our own canvas code).
+rowspan/colspan) and the exported PNG (our own canvas code). A seventh page
+there, `demo.html`, is the README screenshot subject — it has no reference
+image and appears in no test, so adding it to `FIXTURES` would demand
+snapshots that do not exist.
 
 ```sh
 npx playwright test tests/e2e/golden.spec.ts --update-snapshots

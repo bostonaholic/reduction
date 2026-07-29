@@ -5,22 +5,7 @@ Engineers](https://www.cookingforengineers.com/) style tabular diagram —
 ingredients down the left, operations spanning the rows they consume, the whole
 thing readable as a timeline.
 
-```
-┌────────────────────────────────────────────────────────┐
-│ Butter and flour an 8x8-in pan                         │  ← banner rows
-├────────────────────────────────────────────────────────┤
-│ Preheat oven to 350°F (170°C)                          │
-├──────────────────────┬──────┬─────┬─────┬──────┬───────┤
-│ 4 oz (115 g) butter  │ melt │     │     │      │       │
-├──────────────────────┼──────┤ mix │     │      │ bake  │
-│ 1 cup (200 g) sugar  │      │     │ mix │ fold │ 350°F │
-│ 1/4 tsp vanilla      │      │     │     │  in  │ 30-40 │
-├──────────────────────┼──────┴─────┤     │      │  min  │
-│ 2 large (100 g) eggs │            │     │      │       │
-├──────────────────────┼────────────┴─────┤      │       │
-│ 1/2 cup (80 g) flour │                  │      │       │
-└──────────────────────┴──────────────────┴──────┴───────┘
-```
+![The Reduction overlay on a recipe page: the recipe rendered as a table — ingredients down the left, operations spanning the rows they consume — floating above the dimmed page.](docs/screenshot.png)
 
 ## Install it
 
@@ -57,6 +42,26 @@ rules produce the whole diagram:
 
     column(node)  = depth from the ingredient leaves
     rowSpan(node) = number of leaves in its subtree
+
+Abridged from the reference brownie recipe — the screenshot above shows the
+same recipe with its full nine ingredients:
+
+```
+┌────────────────────────────────────────────────────────┐
+│ Butter and flour an 8x8-in pan                         │  ← banner rows
+├────────────────────────────────────────────────────────┤
+│ Preheat oven to 350°F (170°C)                          │
+├──────────────────────┬──────┬─────┬─────┬──────┬───────┤
+│ 4 oz (115 g) butter  │ melt │     │     │      │       │
+├──────────────────────┼──────┤ mix │     │      │ bake  │
+│ 1 cup (200 g) sugar  │      │     │ mix │ fold │ 350°F │
+│ 1/4 tsp vanilla      │      │     │     │  in  │ 30-40 │
+├──────────────────────┼──────┴─────┤     │      │  min  │
+│ 2 large (100 g) eggs │            │     │      │       │
+├──────────────────────┼────────────┴─────┤      │       │
+│ 1/2 cup (80 g) flour │                  │      │       │
+└──────────────────────┴──────────────────┴──────┴───────┘
+```
 
 Row order comes from a depth-first traversal of the leaves, which is what
 guarantees every operation's inputs land in a *contiguous* block of rows — the
@@ -115,7 +120,14 @@ npm test           # unit + fixture golden tests
 npm run report     # per-site quality report (confidence, tree depth, shape)
 npm run e2e        # loads the extension in Chromium, runs against live sites
 npm run capture    # refresh the local HTML fixtures
+npm run screenshot # regenerate the README screenshot; re-run after any
+                   # change to the overlay's look
 ```
+
+The browser-based scripts (`npm run e2e`, `npm run screenshot`) need
+Playwright's browser installed once: `npx playwright install chromium`.
+Regenerate the screenshot on macOS — like the `-darwin`-suffixed golden
+references, the committed image is pinned to macOS font rasterization.
 
 `npm run report` is the useful one while tuning inference — pass/fail tells you
 nothing broke, the report tells you whether the output is any good:
@@ -144,15 +156,15 @@ foodnetwork     json-ld  ing 11  steps 6  banners 1  depth 5  12x6  conf 100%  o
 
 ### Golden master
 
-Six hand-written recipes in `tests/e2e/golden-pages/` — `brownies`, `parallel`,
-`banners`, `orphans`, `microdata`, and `heuristic` — are rendered and compared
-pixel-for-pixel against committed reference images (the seventh page there,
-`demo.html`, is the README screenshot subject and runs in no test). They are hand-written rather
-than captured so the inputs never drift: a failure always means *our* code
-changed, never that a publisher edited their page. Between them they cover all
-three extraction strategies and the tree shapes worth pinning — deep nesting,
-two independent branches merged by a later step, banner-only prep, and
-ingredients no step mentions.
+Six hand-written recipes in `tests/e2e/golden-pages/` — `brownies`,
+`parallel`, `banners`, `orphans`, `microdata`, and `heuristic` — are rendered
+and compared pixel-for-pixel against committed reference images (the seventh
+page there, `demo.html`, is the README screenshot subject and runs in no
+test). They are hand-written rather than captured so the inputs never drift:
+a failure always means *our* code changed, never that a publisher edited
+their page. Between them they cover all three extraction strategies and the
+tree shapes worth pinning — deep nesting, two independent branches merged by
+a later step, banner-only prep, and ingredients no step mentions.
 
 Two images are compared per recipe, because they come from different renderers
 that can regress independently:
