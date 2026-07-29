@@ -27,6 +27,7 @@ const PRINT_CSS = `
     font-size: 12.5px;
     color: #6b7268;
     margin: 0 0 18px;
+    overflow-wrap: anywhere;
   }
   .rd-doc-meta a { color: #3d6b3f; }
   .rd-caption { display: none; }
@@ -38,9 +39,26 @@ const PRINT_CSS = `
   }
 `;
 
+/** Only http(s) URLs earn an anchor — anything else stays inert text. */
+function isHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 /** A complete HTML document for the print tab. */
 export function printableDocument(recipe: Recipe, grid: Grid, sharedCss: string): string {
-  const servings = recipe.yield ? ` · ${escapeHtml(recipe.yield)}` : '';
+  const url = recipe.sourceUrl.trim();
+  const source = !url
+    ? ''
+    : isHttpUrl(url)
+      ? `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`
+      : escapeHtml(url);
+  const servings = recipe.yield ? escapeHtml(recipe.yield) : '';
+  const meta = [source, servings].filter(Boolean).join(' · ');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -51,7 +69,7 @@ export function printableDocument(recipe: Recipe, grid: Grid, sharedCss: string)
 </head>
 <body>
 <h1 class="rd-doc-title">${escapeHtml(recipe.title)}</h1>
-<p class="rd-doc-meta">${escapeHtml(new URL(recipe.sourceUrl).hostname)}${servings}</p>
+<p class="rd-doc-meta">${meta}</p>
 ${renderTable(recipe, grid)}
 </body>
 </html>`;
