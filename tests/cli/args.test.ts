@@ -69,19 +69,17 @@ describe('parseArgs', () => {
     }
   });
 
-  it('strips terminal control characters from echoed argument values', () => {
-    const ESC = String.fromCharCode(27);
-    for (const argv of [
-      [`x:${ESC}[31mRED${ESC}[0m`],
-      [`--${ESC}[2Jflag`],
-      ['https://example.test/', `${ESC}]0;t${ESC}\\`],
-      ['https://example.test/', '--format', `${ESC}[31myaml`],
-    ]) {
-      const result = parseArgs(argv);
-      expect(result.kind).toBe('error');
-      if (result.kind === 'error') {
-        expect(result.message).not.toContain(ESC);
-      }
+  const ESC = String.fromCharCode(27);
+  it.each([
+    { carrier: 'a color sequence in the URL', argv: [`x:${ESC}[31mRED${ESC}[0m`] },
+    { carrier: 'a clear-screen sequence in a flag', argv: [`--${ESC}[2Jflag`] },
+    { carrier: 'a title sequence in an extra argument', argv: ['https://example.test/', `${ESC}]0;t${ESC}\\`] },
+    { carrier: 'a color sequence in the format value', argv: ['https://example.test/', '--format', `${ESC}[31myaml`] },
+  ])('strips terminal control characters from $carrier', ({ argv }) => {
+    const result = parseArgs(argv);
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).not.toContain(ESC);
     }
   });
 
