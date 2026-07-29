@@ -8,7 +8,7 @@
  * rendered output, errors go to stderr.
  */
 
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { NoRecipeFound, extractRecipe } from '../core/extract.js';
 import { CLAUDE_THRESHOLD } from '../core/escalate.js';
 import { flatTree, inferTree } from '../core/infer.js';
@@ -137,9 +137,15 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   // deeply nested elements — far under the byte cap — overflows the stack
   // here. An uncaught throw would dump a stack trace carrying local paths;
   // catch it and surface the same one-line operational failure as the rest.
+  // jsdom's default virtual console forwards jsdomError events to the real
+  // global console — outside deps.stderr and every sanitizer. Those messages
+  // quote raw page text (a CSS @import URL, verbatim), so a hostile page
+  // could write ANSI escape sequences straight to the terminal; an
+  // unhandled-exception event would dump a stack with local paths. A bare
+  // VirtualConsole forwards nowhere and swallows error events by design.
   let doc: Document;
   try {
-    doc = new JSDOM(html).window.document;
+    doc = new JSDOM(html, { virtualConsole: new VirtualConsole() }).window.document;
   } catch {
     stderr.write('could not parse the page\n');
     return 1;

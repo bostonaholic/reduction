@@ -7,12 +7,26 @@
  * builds during `npm ci`, so they never skip in CI.
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const cliPath = join(import.meta.dirname, '..', '..', 'dist', 'cli.mjs');
+
+/** As spawnSync, but async, so an in-process test server can answer the child. */
+function spawnCli(args: string[]): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('node', [cliPath, ...args]);
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => (stdout += chunk));
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk));
+    child.on('error', reject);
+    child.on('close', (status) => resolve({ status, stdout, stderr }));
+  });
+}
 
 describe.skipIf(!existsSync(cliPath))('the built CLI', () => {
   it('prints usage on stdout and exits 0 for --help', () => {
@@ -27,5 +41,50 @@ describe.skipIf(!existsSync(cliPath))('the built CLI', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('Usage: reduction');
     expect(result.stdout).toBe('');
+  });
+
+  // Must spawn the real binary: jsdom's default virtual console writes to the
+  // process's real stderr, which in-process tests with injected sinks never
+  // see. Regression test for the silent VirtualConsole in src/cli/run.ts.
+  it('keeps page-derived jsdom noise, including escape sequences, off real stderr', { timeout: 15_000 }, async () => {
+    const ESC = '\u001b';
+    const BEL = '\u0007';
+    // A relative @import cannot resolve against the default about:blank base,
+    // and jsdom's error message quotes the href verbatim — so any control
+    // characters in it would reach the terminal raw.
+    // \u202e is an RLO bidi override: it makes "gnp.exe" display as "exe.png".
+    const hostileImport = `${ESC}]0;PWNED-TITLE${BEL}${ESC}[2K${ESC}[1;31mFORGED\u202egnp.exe${ESC}[0m.css`;
+    const recipe = {
+      '@context': 'https://schema.org',
+      '@type': 'Recipe',
+      name: 'Escape Brownies',
+      recipeIngredient: ['4 oz unsalted butter', '1 cup sugar'],
+      recipeInstructions: [
+        { '@type': 'HowToStep', text: 'Melt the butter.' },
+        { '@type': 'HowToStep', text: 'Mix in the sugar.' },
+      ],
+    };
+    const page = [
+      '<!doctype html><html><head><title>Fixture</title>',
+      `<style>@import "${hostileImport}";</style>`,
+      `<script type="application/ld+json">${JSON.stringify(recipe)}</script>`,
+      '</head><body><p>Recipe page</p></body></html>',
+    ].join('');
+
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(page);
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const result = await spawnCli([`http://127.0.0.1:${port}/`, '--format', 'json']);
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout).recipe.title).toBe('Escape Brownies');
+      expect(result.stderr).not.toContain(ESC);
+      expect(result.stderr).toBe('');
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 });
