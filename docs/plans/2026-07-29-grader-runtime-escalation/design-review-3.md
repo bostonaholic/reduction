@@ -110,3 +110,82 @@ on that axis revision 3 strictly improves on today.
 real page fixture was constructed for the 0.59-vs-0.30 pair.
 
 VERDICT: REQUEST CHANGES
+
+---
+
+# Round 3 — closure auditor (3b), delivered late
+
+Also **REQUEST CHANGES**. Confirms 3a's blocking finding independently and
+finds four more holes in the same rule. Every round-2 issue and nitpick is
+CLOSED and verified at source; only the blocking one is PARTIAL.
+
+## The band is a no-op where it matters most
+
+**Hole A — both below the threshold.** Local `0.55` `{F:[F6]}` vs Claude
+`0.05` `{F:[]}` — 19 of 20 ingredients appended to the root, F-clean by the
+carve-outs the design itself lists (verified at `src/core/plan.ts:120-127`,
+where appended orphans are *not* counted as matched). Same band, step 6 fires,
+Claude wins, **0.50 of coverage discarded**.
+
+Two observations that make this the centre of the round:
+
+1. A near-flat card is low-coverage *by definition*, so the lower band is
+   precisely where near-flat F-clean cards live.
+2. The lower band is **the only region today's `confidence < 0.6` trigger even
+   reaches** — so on the pre-existing escalation path, the trust band is a
+   no-op.
+
+It is also a regression: today `src/content/index.ts:211` gives that pair to
+local (`0.05 >= 0.55` is false). Revision 3 hands it to Claude. Strictly worse
+than current behaviour, in the band current behaviour already gets right.
+
+**Hole B — both above.** Local `1.00` `{F:[F6]}` vs Claude `0.61` `{}` → Claude
+wins with 39% of ingredients unattached. Decision 1 argues the confidence
+trigger must survive because sub-0.6 means "≥40% unattached which the S/F tiers
+do not fully re-detect". 39% is not meaningfully different.
+
+**Hole C — the cliff.** Re-run the round-2 scenario with Claude at 0.61 instead
+of 0.30: same band, step 6 fires, Claude wins. Claude 0.59 → local wins; Claude
+0.61 → Claude wins. A 0.02 move in the loser's number flips the winner. The
+design probes the edge only from the safe side (`:334`).
+
+**Hole D — step 7 is truth-blind.** Skipping step 6 hands the decision to pure
+coverage: local `0.61` `{F:[F1..F7]}` beats Claude `0.59` clean. Seven
+falsehoods ship over a truthful card 0.02 behind. Shape disclosed at
+`:261-263`; magnitude understated.
+
+**Hole E — the band predicate is never written.** Whether `0.60` is upper or
+lower is inferable only from a worked example. Needs one line of spec.
+
+## Argument inconsistency
+
+Decision 2 rejects a numeric gap floor as "an invented constant with no
+doctrinal grounding", then adopts a rule that **is** a gap floor — one whose
+strength varies from ~0 to 0.6 depending on absolute position, which is never
+argued.
+
+Separately, `CLAUDE_THRESHOLD`'s documented meaning
+(`src/content/index.ts:22`, "not trustworthy enough to show alone") governs
+whether to **spend a call**, not whether an **F-count is believable**. The
+constant's authority is transferred across a semantic boundary without a
+sentence justifying it.
+
+## What would close it
+
+Either (a) make the coverage guard **continuous** rather than banded — F-count
+decides only when the confidence delta is small, at any absolute position — and
+accept that the constant is chosen rather than borrowed; or (b) keep the band
+and write the missing half: state and test what happens when both cards sit in
+the lower band with a large coverage gap, and argue why discarding a 0.55 card
+for a 0.05 one is acceptable there when it is not across the line.
+
+Either way: write the band predicate literally, and pin a same-band large-gap
+regression test in both directions.
+
+## One unprobed note
+
+`infer.ts`'s denominator is `matchers.length` while `plan.ts`'s is
+`ingredients.length` — comparable but not provably identical measurements,
+which matters more now that a categorical band decision rides on the number.
+
+VERDICT: REQUEST CHANGES
