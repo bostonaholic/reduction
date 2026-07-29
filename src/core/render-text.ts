@@ -2,9 +2,11 @@
  * Grid -> monospace box-drawing text, for terminals.
  *
  * Pure and DOM-free like the rest of src/core/: recipe and grid in, one
- * string out. The caller supplies the width (the CLI passes the terminal's).
- * Width math counts every code point as width 1; double-width characters are
- * accepted for now and may misalign borders (deferred open question).
+ * string out — except that a grid whose canvas would exceed MAX_CANVAS_SLOTS
+ * throws a RangeError rather than allocating it. The caller supplies the
+ * width (the CLI passes the terminal's). Width math counts every code point
+ * as width 1; double-width characters are accepted for now and may misalign
+ * borders (deferred open question).
  */
 
 import type { Cell, Grid, Recipe } from './types.js';
@@ -13,17 +15,32 @@ import { confidenceNote } from './render.js';
 /** Columns never shrink below this, so even squeezed cells stay readable. */
 const MIN_COL_WIDTH = 3;
 
+/**
+ * The canvas is one slot per character; refuse to allocate an absurd one.
+ * A real recipe is a few thousand slots — this is a guard against a hostile
+ * page amplifying a large body into gigabytes of canvas, not a limit any
+ * legitimate table approaches.
+ */
+const MAX_CANVAS_SLOTS = 4_000_000;
+
 /** Word-wrap to `width`, hard-breaking words longer than a whole line. */
 function wrap(text: string, width: number): string[] {
   const lines: string[] = [];
   let line = '';
+  let lineWidth = 0;
   for (const word of text.split(/\s+/).filter(Boolean)) {
     for (const piece of chunk(word, width)) {
-      if (line === '') line = piece;
-      else if (line.length + 1 + piece.length <= width) line += ` ${piece}`;
-      else {
+      const pieceWidth = [...piece].length;
+      if (line === '') {
+        line = piece;
+        lineWidth = pieceWidth;
+      } else if (lineWidth + 1 + pieceWidth <= width) {
+        line += ` ${piece}`;
+        lineWidth += 1 + pieceWidth;
+      } else {
         lines.push(line);
         line = piece;
+        lineWidth = pieceWidth;
       }
     }
   }
@@ -45,6 +62,17 @@ function columnWidths(grid: Grid, width: number): number[] {
   for (const cell of grid.cells) {
     if (cell.colSpan === 1) {
       widths[cell.col] = Math.max(widths[cell.col], [...cell.text].length);
+    }
+  }
+  // A spanning cell (a banner, typically) whose text outgrows its columns
+  // widens them round-robin. Growth is capped at the table width — anything
+  // past it the shrink loop below would only take back.
+  for (const cell of grid.cells) {
+    if (cell.colSpan === 1) continue;
+    let deficit = Math.min([...cell.text].length, width) - contentWidth(cell, widths);
+    for (let c = cell.col; deficit > 0; deficit--) {
+      widths[c]++;
+      c = c + 1 < cell.col + cell.colSpan ? c + 1 : cell.col;
     }
   }
   // Table width = content + one border line per column boundary and edge.
@@ -98,6 +126,9 @@ export function renderText(recipe: Recipe, grid: Grid, width: number): string {
   for (const h of heights) ys.push(ys[ys.length - 1] + h + 1);
   const canvasWidth = xs[grid.cols];
   const canvasHeight = ys[grid.rows];
+  if ((canvasHeight + 1) * (canvasWidth + 1) > MAX_CANVAS_SLOTS) {
+    throw new RangeError(`table too large to render (${canvasHeight + 1} lines)`);
+  }
 
   const text: string[][] = Array.from({ length: canvasHeight + 1 }, () =>
     new Array<string>(canvasWidth + 1).fill(' '),

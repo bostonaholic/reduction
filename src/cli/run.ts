@@ -172,7 +172,14 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   } else if (args.format === 'html') {
     stdout.write(`${renderTable(recipe, grid)}\n`);
   } else {
-    stdout.write(renderText(recipe, grid, deps.width));
+    // renderText refuses to allocate an absurd canvas; that refusal is an
+    // operational failure, same class as an oversized body.
+    try {
+      stdout.write(renderText(recipe, grid, deps.width));
+    } catch (err) {
+      stderr.write(`${(err as Error).message}\n`);
+      return 1;
+    }
   }
   return 0;
 }

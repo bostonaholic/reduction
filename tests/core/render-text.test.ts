@@ -92,6 +92,44 @@ describe('renderText wrapping', () => {
   });
 });
 
+describe('renderText spanning cells', () => {
+  const banner = 'Preheat the oven to 350°F and butter an 8x8-inch pan';
+  const recipe: Recipe = {
+    ...recipeWith('Banner Bake', op('mix', ing('flour'), ing('sugar'))),
+    banners: [banner],
+  };
+  const grid = layout(recipe);
+
+  it('sizes columns from spanning cells too, so a banner is not needlessly wrapped', () => {
+    const out = renderText(recipe, grid, 80);
+    // The banner fits in 80 columns, so it must land on a single line even
+    // though every colSpan-1 cell is far narrower than it.
+    expect(out).toContain(banner);
+  });
+
+  it('keeps borders aligned with a colSpan > 1 cell in play', () => {
+    const out = renderText(recipe, grid, 80);
+    const lines = tableLines(out);
+    expect(lines.length).toBeGreaterThan(2);
+    const widths = new Set(lines.map((line) => [...line].length));
+    expect([...widths]).toHaveLength(1);
+  });
+
+  it('still shrinks to the given width when the banner alone exceeds it', () => {
+    const out = renderText(recipe, grid, 30);
+    const widths = tableLines(out).map((line) => [...line].length);
+    expect(Math.max(...widths)).toBeLessThanOrEqual(30);
+  });
+});
+
+describe('renderText canvas bound', () => {
+  it('throws rather than allocating an absurd canvas for hostile input', () => {
+    const recipe = recipeWith('Bomb', ing('x'.repeat(4_000_000)));
+    const grid = layout(recipe);
+    expect(() => renderText(recipe, grid, 10)).toThrow(/too large/);
+  });
+});
+
 describe('renderText degenerate grids', () => {
   it('renders a single-ingredient grid without spans', () => {
     const recipe = recipeWith('Hydration Guide', ing('water'));
