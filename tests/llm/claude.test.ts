@@ -76,9 +76,6 @@ async function requestHeadersFor(browser: boolean): Promise<Record<string, strin
   });
   vi.stubGlobal('fetch', fetchMock);
 
-  // Assembled outside the call so this compiles both before and after
-  // ClaudeSettings gains its required `browser` field (excess properties are
-  // only checked on literals passed directly).
   const settings = { apiKey: 'sk-ant-test', model: DEFAULT_MODEL, effort: DEFAULT_EFFORT, browser };
   await callClaude(settings, 'Brownies', ['4 oz butter'], ['Melt it.']);
 

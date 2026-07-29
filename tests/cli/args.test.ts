@@ -1,6 +1,5 @@
 /**
- * Acceptance tests for the CLI argument parser (slice 1 of
- * docs/plans/2026-07-29-cli-and-agent-skill).
+ * Acceptance tests for the CLI argument parser.
  *
  * parseArgs is pure — argv in, a discriminated result out — so nothing here
  * spawns a process or touches process.argv. Usage errors are the exit-2
@@ -28,8 +27,6 @@ describe('parseArgs', () => {
   });
 
   it('defaults the format to text', () => {
-    // Flipped from `json` when slice 2 introduced the text renderer — a
-    // plan-scheduled change (plan slice 2, step 3), not scope drift.
     expect(parseArgs(['https://example.test/brownies'])).toMatchObject({
       kind: 'run',
       format: 'text',

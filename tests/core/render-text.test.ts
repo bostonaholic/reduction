@@ -1,6 +1,5 @@
 /**
- * Acceptance tests for the box-drawing text renderer (slice 2 of
- * docs/plans/2026-07-29-cli-and-agent-skill).
+ * Acceptance tests for the box-drawing text renderer.
  *
  * renderText(recipe, grid, width) is pure — string in, string out — and
  * treats every code point as width 1 (double-width handling is a deferred

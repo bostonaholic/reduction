@@ -1,11 +1,10 @@
 /**
- * Acceptance tests for the CLI run function (slices 1, 3 and 4 of
- * docs/plans/2026-07-29-cli-and-agent-skill).
+ * Acceptance tests for the CLI run function.
  *
  * `run(args, deps)` takes injected `{fetch, stdout, stderr, env, width}` and
- * returns the exit code, so nothing here spawns a process (Design
- * Decision 10). Exit contract: 0 success, 1 operational failure, 2 usage
- * error; stdout carries only rendered output.
+ * returns the exit code, so nothing here spawns a process. Exit contract:
+ * 0 success, 1 operational failure, 2 usage error; stdout carries only
+ * rendered output.
  *
  * Page HTML is inline JSON-LD — tests/fixtures/ is uncommitted and must not
  * be depended on. The Claude tier reaches the network through the global

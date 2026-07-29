@@ -1,6 +1,5 @@
 /**
- * Acceptance tests for the agent Skill (slice 6 of
- * docs/plans/2026-07-29-cli-and-agent-skill).
+ * Acceptance tests for the agent Skill.
  *
  * The discovery contract is the file's location plus `name` and
  * `description` in its YAML frontmatter. The `npx reduction` guard is

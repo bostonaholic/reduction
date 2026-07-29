@@ -1,6 +1,5 @@
 /**
- * Acceptance tests for the packaged CLI (slice 5 of
- * docs/plans/2026-07-29-cli-and-agent-skill).
+ * Acceptance tests for the packaged CLI.
  *
  * The only tests that spawn the built artifact: they are what checks the
  * shebang banner, the esm format, and the bundle itself. Skipped when
