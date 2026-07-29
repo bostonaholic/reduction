@@ -13,6 +13,7 @@ import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import { extractRecipe } from '../src/core/extract.js';
 import { parseIngredient } from '../src/core/ingredient.js';
+import { gradeCard } from '../src/core/grade.js';
 import { inferTree } from '../src/core/infer.js';
 import { layout, validateGrid } from '../src/core/layout.js';
 import { renderTable } from '../src/core/render.js';
@@ -69,6 +70,15 @@ describe.skipIf(names.length === 0)('real recipe sites', () => {
       const closes = (html.match(/<\/tr>/g) ?? []).length;
       expect(opens).toBe(closes);
       expect(html).toContain('<table');
+    });
+
+    // The checks above prove the card can be drawn. This one asks whether it
+    // is true — see docs/recipe-card-rules.md. Every assertion before it would
+    // still pass if the inference attached every operation to the wrong
+    // ingredients, which is exactly the bug that once shipped.
+    it('grades clean against the source recipe', () => {
+      const recipe = inferTree(raw, `https://example.test/${name}`);
+      expect(gradeCard(recipe, raw).map((f) => `${f.rule}: ${f.detail}`)).toEqual([]);
     });
   });
 });

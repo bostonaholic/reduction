@@ -120,7 +120,7 @@ function isTerminalPhrase(phrase: string): boolean {
  * the letters of "salt", and a substring match happily melts the table salt
  * along with the butter.
  */
-function tokenize(text: string): string[] {
+export function tokenize(text: string): string[] {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, ' ')
@@ -130,7 +130,7 @@ function tokenize(text: string): string[] {
 }
 
 /** Do the words of `phrase` appear consecutively in `haystack`? */
-function mentions(haystack: string[], phrase: string): boolean {
+export function mentions(haystack: string[], phrase: string): boolean {
   const needle = tokenize(phrase);
   if (needle.length === 0 || needle.length > haystack.length) return false;
 
