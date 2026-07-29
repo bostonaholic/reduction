@@ -10,6 +10,7 @@
 
 import { JSDOM } from 'jsdom';
 import { NoRecipeFound, extractRecipe } from '../core/extract.js';
+import { CLAUDE_THRESHOLD } from '../core/escalate.js';
 import { flatTree, inferTree } from '../core/infer.js';
 import { layout } from '../core/layout.js';
 import { treeFromPlan } from '../core/plan.js';
@@ -19,13 +20,6 @@ import { callClaude, resolveEffort, resolveModel } from '../llm/claude.js';
 import type { OutputFormat } from './args.js';
 
 /** Browser-mimicking request headers, the shape tools/capture-fixtures.mjs uses. */
-/**
- * Below this the local heuristics are not trustworthy enough to show alone.
- * Mirrors CLAUDE_THRESHOLD in src/content/index.ts — strict `<`, so exactly
- * 0.6 stays heuristic there too.
- */
-const CLAUDE_THRESHOLD = 0.6;
-
 const HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
