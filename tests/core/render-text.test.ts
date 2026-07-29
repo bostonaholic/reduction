@@ -127,6 +127,12 @@ describe('renderText canvas bound', () => {
     const grid = layout(recipe);
     expect(() => renderText(recipe, grid, 10)).toThrow(/too large/);
   });
+
+  it('refuses a single oversized cell before the wrap pass can balloon memory', () => {
+    const recipe = recipeWith('Bomb', ing('y'.repeat(12_000_000)));
+    const grid = layout(recipe);
+    expect(() => renderText(recipe, grid, 100)).toThrow(/too large/);
+  });
 });
 
 describe('renderText degenerate grids', () => {

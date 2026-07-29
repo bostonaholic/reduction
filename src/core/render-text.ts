@@ -48,6 +48,13 @@ function wrap(text: string, width: number): string[] {
   return lines.length > 0 ? lines : [''];
 }
 
+/** Code points in `text`, counted without materializing an array of them. */
+function codePointCount(text: string): number {
+  let count = 0;
+  for (const _ of text) count++;
+  return count;
+}
+
 function chunk(word: string, size: number): string[] {
   const points = [...word];
   if (points.length <= size) return [word];
@@ -95,6 +102,17 @@ function contentWidth(cell: Cell, widths: number[]): number {
 export function renderText(recipe: Recipe, grid: Grid, width: number): string {
   const note = confidenceNote(recipe).text;
   if (grid.cells.length === 0) return recipe.title ? `${recipe.title}\n${note}\n` : `${note}\n`;
+
+  // Refuse oversized input before the sizing and wrap passes materialize
+  // every cell's text: a single multi-megabyte cell would balloon memory
+  // long before the canvas guard below could fire. Cell text (whitespace
+  // aside) ends up occupying canvas slots, so anything past the slot cap
+  // could never render within it anyway.
+  let contentSlots = 0;
+  for (const cell of grid.cells) contentSlots += codePointCount(cell.text);
+  if (contentSlots > MAX_CANVAS_SLOTS) {
+    throw new RangeError(`table too large to render (${contentSlots} characters)`);
+  }
 
   const widths = columnWidths(grid, width);
   const wrapped = new Map<Cell, string[]>(
