@@ -152,6 +152,18 @@ describe('run failure ladder', () => {
     expect(stdout.text).toBe('');
   });
 
+  it('hints that a 403 is likely bot-blocking rather than a bad URL', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse('', { ok: false, status: 403 }));
+    const { deps, stdout, stderr } = makeDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+
+    expect(exit).toBe(1);
+    expect(stderr.text).toContain('HTTP 403');
+    expect(stderr.text).toMatch(/blocking scripted requests/);
+    expect(stdout.text).toBe('');
+  });
+
   it('prints the NoRecipeFound message verbatim for a recipe-free page and exits 1', async () => {
     const fetchPage = vi.fn().mockResolvedValue(pageResponse(RECIPE_FREE_PAGE));
     const { deps, stdout, stderr } = makeDeps(fetchPage);

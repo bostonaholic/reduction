@@ -91,7 +91,13 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   try {
     res = await deps.fetch(args.url, { headers: HEADERS, signal: controller.signal });
     if (!res.ok) {
-      stderr.write(`fetch failed: HTTP ${res.status}\n`);
+      // A 403 to a plain fetch is almost always bot-blocking, not a bad URL;
+      // say so rather than sending the user off to recheck their link.
+      stderr.write(
+        res.status === 403
+          ? 'fetch failed: HTTP 403 — the site is likely blocking scripted requests; the same page usually works in a real browser\n'
+          : `fetch failed: HTTP ${res.status}\n`,
+      );
       return 1;
     }
     // An honest Content-Length lets us refuse the body without reading it.

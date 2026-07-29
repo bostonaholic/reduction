@@ -29,6 +29,11 @@ Options:
   --claude   when the local parse is low-confidence, ask Claude to improve it
              (uses ANTHROPIC_API_KEY and spends your API budget)
   --help     show this message
+
+Exit codes: 0 success, 1 operational failure (reason on stderr), 2 usage error.
+
+Some major recipe sites block scripted requests: expect HTTP 403 and exit 1
+there even though the page loads fine in a browser.
 `;
 
 export function parseArgs(argv: string[]): ParsedArgs {
