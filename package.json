@@ -12,6 +12,7 @@
     "e2e": "playwright test",
     "capture": "node tools/capture-fixtures.mjs && node tools/capture-fixtures-browser.mjs",
     "icons": "node tools/make-icons.mjs",
+    "screenshot": "node tools/make-screenshot.mjs",
     "report": "vitest run --config vitest.report.config.ts -t reports",
     "dev": "node build.mjs --watch",
     "e2e:golden": "playwright test tests/e2e/install.spec.ts tests/e2e/golden.spec.ts",
