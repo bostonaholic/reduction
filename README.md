@@ -65,6 +65,11 @@ session — expect exit 1 with the reason on stderr. And the CLI fetches
 whatever URL it is given with your network access, localhost and private
 addresses included; it does not filter them.
 
+A Claude Code session rooted in this checkout discovers the CLI through the
+Skill at `.claude/skills/reduction/SKILL.md`. Other agents: copy that
+directory into your own skill location — the Skill reaches only sessions
+rooted here, and `npm install` never delivers it.
+
 ## How it works
 
 The insight that makes this tractable: **the table is a left-to-right rendering
