@@ -1,15 +1,32 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { callClaude, DEFAULT_MODEL, MODELS, resolveModel } from '../../src/llm/claude.js';
+import {
+  callClaude,
+  DEFAULT_EFFORT,
+  DEFAULT_MODEL,
+  EFFORTS,
+  MODELS,
+  resolveEffort,
+  resolveModel,
+  type Effort,
+} from '../../src/llm/claude.js';
 
 /** Captures the request body callClaude would put on the wire. */
-async function requestBodyFor(modelId: string): Promise<Record<string, any>> {
+async function requestBodyFor(
+  modelId: string,
+  effort: Effort = DEFAULT_EFFORT,
+): Promise<Record<string, any>> {
   const fetchMock = vi.fn().mockResolvedValue({
     ok: true,
     json: async () => ({ content: [{ type: 'text', text: '{"banners":[],"steps":[]}' }] }),
   });
   vi.stubGlobal('fetch', fetchMock);
 
-  await callClaude('sk-ant-test', resolveModel(modelId), 'Brownies', ['4 oz butter'], ['Melt it.']);
+  await callClaude(
+    { apiKey: 'sk-ant-test', model: resolveModel(modelId), effort },
+    'Brownies',
+    ['4 oz butter'],
+    ['Melt it.'],
+  );
 
   return JSON.parse(fetchMock.mock.calls[0][1].body);
 }
@@ -39,21 +56,35 @@ describe('resolveModel', () => {
   });
 });
 
+describe('resolveEffort', () => {
+  it('returns the matching level', () => {
+    expect(resolveEffort('max')).toBe('max');
+  });
+
+  it('falls back to low for an unset or unrecognised level', () => {
+    expect(resolveEffort(undefined)).toBe('low');
+    expect(resolveEffort('exhaustive')).toBe('low');
+    expect(DEFAULT_EFFORT).toBe('low');
+  });
+});
+
 describe('callClaude', () => {
   it('sends the chosen model', async () => {
     const body = await requestBodyFor('claude-sonnet-5');
     expect(body.model).toBe('claude-sonnet-5');
   });
 
-  it('requests low effort on models that accept it', async () => {
-    const body = await requestBodyFor('claude-opus-5');
-    expect(body.output_config.effort).toBe('low');
+  it('sends the chosen effort on models that accept one', async () => {
+    for (const effort of EFFORTS) {
+      const body = await requestBodyFor('claude-opus-5', effort);
+      expect(body.output_config.effort).toBe(effort);
+    }
   });
 
-  it('omits effort for Haiku, which rejects the field outright', async () => {
-    // Sending output_config.effort to Haiku 4.5 is a 400, so the request must
-    // leave it out rather than pass undefined.
-    const body = await requestBodyFor('claude-haiku-4-5');
+  it('omits effort for Haiku even when a level is stored', async () => {
+    // Sending output_config.effort to Haiku 4.5 is a 400. The picker disables
+    // the control, but a stored level from another model must not leak through.
+    const body = await requestBodyFor('claude-haiku-4-5', 'max');
     expect(body.output_config).not.toHaveProperty('effort');
     expect(body.output_config.format.type).toBe('json_schema');
   });

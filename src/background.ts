@@ -6,7 +6,7 @@
  * API across origins, and open an extension page for printing.
  */
 
-import { callClaude, resolveModel } from './llm/claude.js';
+import { callClaude, resolveEffort, resolveModel } from './llm/claude.js';
 import { STORAGE_KEYS, type ClaudeReply, type Message } from './messages.js';
 
 chrome.action.onClicked.addListener(async (tab) => {
@@ -35,20 +35,25 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
         STORAGE_KEYS.apiKey,
         STORAGE_KEYS.useClaude,
         STORAGE_KEYS.model,
+        STORAGE_KEYS.effort,
       ]);
       const apiKey = stored[STORAGE_KEYS.apiKey] as string | undefined;
       const enabled = stored[STORAGE_KEYS.useClaude] !== false;
-      const model = resolveModel(stored[STORAGE_KEYS.model] as string | undefined);
 
       if (!enabled || !apiKey) {
         sendResponse({ ok: false, error: 'no-api-key' } satisfies ClaudeReply);
         return;
       }
 
+      const settings = {
+        apiKey,
+        model: resolveModel(stored[STORAGE_KEYS.model] as string | undefined),
+        effort: resolveEffort(stored[STORAGE_KEYS.effort] as string | undefined),
+      };
+
       try {
         const tree = await callClaude(
-          apiKey,
-          model,
+          settings,
           message.title,
           message.ingredients,
           message.steps,

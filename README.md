@@ -75,9 +75,10 @@ This is the hard part, and it runs as a three-tier ladder:
    options page). Structured outputs cannot express a recursive schema, so the
    model returns a *flat* plan — steps referencing ingredients and earlier steps
    by index — and `src/core/plan.ts` builds the tree from it. That keeps the
-   whole Claude path testable without a network call. The model is picked in the
-   options page — Opus 5 by default, Sonnet 5 and Haiku 4.5 as cheaper and less
-   accurate, Fable 5 if you want the best parse and will pay for it.
+   whole Claude path testable without a network call. The model and its effort
+   level are picked in the options page — Opus 5 at low effort by default,
+   Sonnet 5 and Haiku 4.5 as cheaper and less accurate, Fable 5 if you want the
+   best parse and will pay for it.
 3. **Flat table** (always works). Every ingredient in column one, each step its
    own column. Never claims to understand the recipe.
 

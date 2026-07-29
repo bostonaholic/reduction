@@ -51,19 +51,34 @@ test('exposes a working options page', async () => {
   await expect(page.locator('h1')).toHaveText('Reduction');
   await expect(page.locator('#key')).toBeVisible();
 
-  // The picker is populated from the model list, and defaults to the first one.
+  // The pickers are populated from the model and effort lists, and default to
+  // the values that reproduce the extension's original hardcoded behaviour.
   await expect(page.locator('#model option')).not.toHaveCount(0);
+  await expect(page.locator('#effort option')).not.toHaveCount(0);
   await expect(page.locator('#model')).toHaveValue('claude-opus-5');
+  await expect(page.locator('#effort')).toHaveValue('low');
+  await expect(page.locator('#effort')).toBeEnabled();
 
-  // The key and the model round-trip through extension storage.
-  await page.fill('#key', 'sk-ant-test-key');
+  // Haiku takes no effort setting, so the control says so rather than implying
+  // one that the request would drop.
   await page.selectOption('#model', 'claude-haiku-4-5');
+  await expect(page.locator('#effort')).toBeDisabled();
+  await expect(page.locator('#effort-unsupported')).toBeVisible();
+
+  await page.selectOption('#model', 'claude-sonnet-5');
+  await expect(page.locator('#effort')).toBeEnabled();
+  await expect(page.locator('#effort-unsupported')).toBeHidden();
+
+  // Key, model, and effort all round-trip through extension storage.
+  await page.fill('#key', 'sk-ant-test-key');
+  await page.selectOption('#effort', 'high');
   await page.click('#save');
   await expect(page.locator('#status')).toHaveText('Saved');
 
   await page.reload();
   await expect(page.locator('#key')).toHaveValue('sk-ant-test-key');
-  await expect(page.locator('#model')).toHaveValue('claude-haiku-4-5');
+  await expect(page.locator('#model')).toHaveValue('claude-sonnet-5');
+  await expect(page.locator('#effort')).toHaveValue('high');
 
   await page.close();
 });

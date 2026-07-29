@@ -27,5 +27,6 @@ export const STORAGE_KEYS = {
   apiKey: 'anthropicApiKey',
   useClaude: 'useClaudeFallback',
   model: 'claudeModel',
+  effort: 'claudeEffort',
   printPayload: 'printPayload',
 } as const;
