@@ -52,7 +52,8 @@ is a usage error (exit 2).
 - `1` — operational failure, explained on stderr. Expect this on
   bot-blocked sites (plain fetch gets a 403 where a real browser would
   not), on pages with no recipe, on pages the parser cannot handle
-  (`could not parse the page`), and on hostile pages whose table would
+  (`could not parse the page`), on oversized pages
+  (`too large (<n> bytes)`), and on hostile pages whose table would
   be absurdly large (`table too large to render`); relay the stderr
   line to the user rather than retrying blindly.
 - `2` — usage error: bad flags, bad URL, or `--claude` without a key.
