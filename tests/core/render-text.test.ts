@@ -84,8 +84,7 @@ describe('renderText wrapping', () => {
     expect(out).toContain('reduced');
     expect(out).toContain('spoon');
     expect(out).not.toMatch(/…|\.\.\./);
-    // The structure fences cell wrapping only, so measure the table lines,
-    // not the appended confidence note.
+    // Measure the table lines, not the appended confidence note.
     const widths = tableLines(out).map((line) => [...line].length);
     expect(widths.length).toBeGreaterThan(0);
     expect(Math.max(...widths)).toBeLessThanOrEqual(40);
