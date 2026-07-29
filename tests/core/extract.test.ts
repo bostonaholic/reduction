@@ -4,7 +4,7 @@
  * Page text reaches terminals and agent transcripts verbatim, so plainText
  * must drop C0/C1 control characters — an ANSI escape sequence in a recipe
  * field could repaint the screen or forge output. Whitespace controls
- * (\t \n \r) are exercised too: they collapse to single spaces.
+ * (\t \n \r \v \f) are exercised too: they collapse to single spaces.
  */
 
 import { JSDOM } from 'jsdom';
@@ -29,6 +29,11 @@ describe('plainText control characters', () => {
 
   it('collapses whitespace controls to single spaces', () => {
     expect(plainText('one\ttwo\r\nthree')).toBe('one two three');
+  });
+
+  it('keeps the word boundary at a VT or FF, rather than gluing words', () => {
+    expect(plainText('1 cup\fsugar')).toBe('1 cup sugar');
+    expect(plainText('mix\vwell')).toBe('mix well');
   });
 });
 
