@@ -4,7 +4,9 @@
  * Rather than re-implementing table layout, we read the geometry the browser
  * already computed for the rendered table and redraw it. Text is re-wrapped
  * with canvas measurements against each cell's real content width, which keeps
- * the export faithful without needing a layout engine of our own.
+ * the export faithful without needing a layout engine of our own. Below the
+ * table, both renderers draw an attribution band carrying the recipe's source
+ * URL, truncated to the table's width.
  *
  * No external libraries: Manifest V3 forbids remote code, and an SVG with a
  * foreignObject taints a canvas, so neither shortcut is available.
@@ -160,7 +162,11 @@ function escapeXml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** A standalone SVG of the table — scalable, tiny, and text stays selectable. */
+/**
+ * A standalone SVG of the table — scalable, tiny, and text stays selectable.
+ * A non-blank sourceUrl is drawn in an attribution band below the table and,
+ * when it is an http(s) URL, wrapped in a link.
+ */
 export function toSvg(table: HTMLTableElement, sourceUrl: string): string {
   const geo = readGeometry(table);
   const style = getComputedStyle(table);
@@ -210,7 +216,11 @@ export function toSvg(table: HTMLTableElement, sourceUrl: string): string {
   return parts.join('\n');
 }
 
-/** A 2x PNG for pasting into places that will not take an SVG. */
+/**
+ * A 2x PNG for pasting into places that will not take an SVG. A non-blank
+ * sourceUrl is drawn in an attribution band below the table — raster output,
+ * so text only, no link.
+ */
 export async function toPng(
   table: HTMLTableElement,
   sourceUrl: string,
