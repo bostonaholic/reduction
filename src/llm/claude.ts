@@ -107,21 +107,31 @@ Rules:
 
 /**
  * The extraction caps bound how many lines reach this prompt, but not how
- * long each is — a hostile page could pack megabytes into one ingredient
- * line and fill the context window on the user's key. Real ingredient lines
- * are under a hundred characters and step texts under a few hundred, so
- * clipping at 300 loses nothing a genuine recipe needs.
+ * long each is — a hostile page could pack megabytes into one line and fill
+ * the context window on the user's key. The bounds below are measured, not
+ * assumed: across the 15 captured site fixtures (113 step texts), the
+ * longest real step is 778 characters (Bon Appétit), the longest ingredient
+ * line 131, and the longest title 53. 2000 clears every observed step with
+ * ~2.5x headroom — long prose steps are exactly what this tier exists to
+ * parse, so the step bound must not clip them. 300 leaves >2x headroom for
+ * ingredient lines and titles.
  */
-const MAX_PROMPT_LINE_CHARS = 300;
+const MAX_STEP_CHARS = 2000;
+const MAX_LINE_CHARS = 300;
 
-function clip(text: string): string {
-  return text.length > MAX_PROMPT_LINE_CHARS ? text.slice(0, MAX_PROMPT_LINE_CHARS) : text;
+/** Bound on code points, not UTF-16 units, so the cut cannot split a
+ * surrogate pair and send a lone surrogate in the prompt. */
+function clip(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return [...text].slice(0, max).join('');
 }
 
 function buildPrompt(title: string, ingredients: string[], steps: string[]): string {
-  const ingredientList = ingredients.map((line, i) => `${i}: ${clip(line)}`).join('\n');
-  const stepList = steps.map((text, i) => `${i}: ${clip(text)}`).join('\n');
-  return `Recipe: ${clip(title)}\n\nIngredients (index: text)\n${ingredientList}\n\nInstructions (index: text)\n${stepList}`;
+  const ingredientList = ingredients
+    .map((line, i) => `${i}: ${clip(line, MAX_LINE_CHARS)}`)
+    .join('\n');
+  const stepList = steps.map((text, i) => `${i}: ${clip(text, MAX_STEP_CHARS)}`).join('\n');
+  return `Recipe: ${clip(title, MAX_LINE_CHARS)}\n\nIngredients (index: text)\n${ingredientList}\n\nInstructions (index: text)\n${stepList}`;
 }
 
 /**

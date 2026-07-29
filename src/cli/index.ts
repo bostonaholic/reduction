@@ -1,7 +1,7 @@
 /**
  * Render a recipe page as a tabular diagram, from the command line.
  *
- *   node dist/cli.mjs <url> [--format text|json|html] [--help]
+ *   node dist/cli.mjs <url> [--format text|json|html] [--claude] [--help]
  *
  * Thin shell over parseArgs and run: this file only binds the real process
  * globals; everything testable lives in args.ts and run.ts.
@@ -12,10 +12,14 @@ import { run } from './run.js';
 
 // A consumer that closes stdout early (`… | head`) took what it wanted;
 // exiting 0 quietly honors that, where crashing on EPIPE would not. The
-// listener covers writes that fail asynchronously.
+// listener covers writes that fail asynchronously. Any other stdout failure
+// (ENOSPC, EIO) is an operational failure: rethrowing from an EventEmitter
+// handler would become an uncaught exception — a stack trace with local
+// paths, outside the 0/1/2 exit contract — so report one line and exit 1.
 process.stdout.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EPIPE') process.exit(0);
-  throw err;
+  process.stderr.write(`stdout write failed${err.code ? ` (${err.code})` : ''}\n`);
+  process.exit(1);
 });
 
 const parsed = parseArgs(process.argv.slice(2));

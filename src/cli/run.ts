@@ -114,12 +114,15 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
     // the 0/1/2 contract, uncaught; nothing here can intercept it.
     // undici's generic "fetch failed" hides the useful part (ECONNREFUSED,
     // ENOTFOUND) in err.cause; append it so the reason reaches the user.
+    // Today's undici messages are fixed strings, but deps.fetch is an
+    // injection seam and message text is no cross-version contract — strip
+    // it like every other untrusted stderr write in this file.
     const error = err as Error & { cause?: { code?: string } };
     const code = error.cause?.code;
     stderr.write(
       error.name === 'AbortError'
         ? 'timeout\n'
-        : `${error.message ?? err}${code ? ` (${code})` : ''}\n`,
+        : `${stripControls(`${error.message ?? err}${code ? ` (${code})` : ''}`)}\n`,
     );
     return 1;
   } finally {

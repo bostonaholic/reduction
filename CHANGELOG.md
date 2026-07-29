@@ -27,6 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   500 items, rather than presenting a truncated diagram as complete — in the
   extension and the CLI alike.
 
+### Security
+
+- Text displayed from a recipe page is stripped of control and bidi override
+  characters, so a hostile page cannot smuggle terminal escapes or
+  direction-flipping text into what you see.
+- Each line sent to Claude is bounded (ingredients and titles at 300
+  characters, steps at 2,000), so a hostile page cannot fill the context
+  window — and your API budget — with one enormous line.
+
 ### Internal
 
 - jsdom is now a runtime dependency (the CLI parses fetched pages with it),
