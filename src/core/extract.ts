@@ -28,7 +28,14 @@ const ENTITIES: Record<string, string> = {
   ldquo: '“', rdquo: '”', deg: '°', frac12: '½', frac14: '¼', frac34: '¾',
 };
 
-/** Strip tags and decode entities without touching the DOM. */
+/**
+ * Strip tags and decode entities without touching the DOM.
+ *
+ * C0/C1 control characters are dropped after entity decoding: page text
+ * reaches terminals (and agent transcripts) verbatim, and an escape
+ * sequence in it could repaint the screen or forge output. `\s+` handles
+ * the whitespace controls, so only the non-whitespace ones are stripped.
+ */
 export function plainText(input: string): string {
   return input
     .replace(/<br\s*\/?>/gi, ' ')
@@ -37,6 +44,7 @@ export function plainText(input: string): string {
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
     .replace(/&([a-z][a-z0-9]*);/gi, (whole, name) => ENTITIES[name.toLowerCase()] ?? whole)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -163,7 +171,7 @@ function fromJsonLd(doc: Document): RawRecipe | null {
       if (ingredientLines.length === 0 && stepTexts.length === 0) continue;
 
       return {
-        title: asText(node.name) || doc.title || 'Recipe',
+        title: asText(node.name) || plainText(doc.title) || 'Recipe',
         ingredientLines,
         stepTexts,
         yield: asText(node.recipeYield) || undefined,
@@ -197,7 +205,7 @@ function fromMicrodata(doc: Document): RawRecipe | null {
   if (ingredientLines.length === 0 && stepTexts.length === 0) return null;
 
   return {
-    title: pick('name')[0] || textOf(doc.querySelector('h1')) || doc.title || 'Recipe',
+    title: pick('name')[0] || textOf(doc.querySelector('h1')) || plainText(doc.title) || 'Recipe',
     ingredientLines,
     stepTexts,
     yield: pick('recipeYield')[0] || undefined,
@@ -288,7 +296,7 @@ function fromHeuristics(doc: Document): RawRecipe | null {
   if (ingredientLines.length === 0 || stepTexts.length === 0) return null;
 
   return {
-    title: textOf(doc.querySelector('h1')) || doc.title || 'Recipe',
+    title: textOf(doc.querySelector('h1')) || plainText(doc.title) || 'Recipe',
     ingredientLines,
     stepTexts,
     strategy: 'heuristic',
