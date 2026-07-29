@@ -152,6 +152,21 @@ describe('run failure ladder', () => {
     expect(stdout.text).toBe('');
   });
 
+  it('surfaces the cause code hidden inside a generic fetch failure', async () => {
+    const cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:443'), {
+      code: 'ECONNREFUSED',
+    });
+    const fetchPage = vi.fn().mockRejectedValue(new Error('fetch failed', { cause }));
+    const { deps, stdout, stderr } = makeDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+
+    expect(exit).toBe(1);
+    expect(stderr.text).toContain('fetch failed');
+    expect(stderr.text).toContain('ECONNREFUSED');
+    expect(stdout.text).toBe('');
+  });
+
   it('hints that a 403 is likely bot-blocking rather than a bad URL', async () => {
     const fetchPage = vi.fn().mockResolvedValue(pageResponse('', { ok: false, status: 403 }));
     const { deps, stdout, stderr } = makeDeps(fetchPage);

@@ -112,8 +112,15 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
     // Any throw during fetch or read exits 1 — including a RangeError from
     // res.text() on an over-long body. An out-of-memory kill exits outside
     // the 0/1/2 contract, uncaught; nothing here can intercept it.
-    const error = err as Error;
-    stderr.write(error.name === 'AbortError' ? 'timeout\n' : `${error.message ?? err}\n`);
+    // undici's generic "fetch failed" hides the useful part (ECONNREFUSED,
+    // ENOTFOUND) in err.cause; append it so the reason reaches the user.
+    const error = err as Error & { cause?: { code?: string } };
+    const code = error.cause?.code;
+    stderr.write(
+      error.name === 'AbortError'
+        ? 'timeout\n'
+        : `${error.message ?? err}${code ? ` (${code})` : ''}\n`,
+    );
     return 1;
   } finally {
     clearTimeout(timer);
