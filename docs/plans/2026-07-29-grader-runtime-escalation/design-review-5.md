@@ -7,8 +7,20 @@ verdict: APPROVE
 
 # Design review — round 5 (cap round)
 
-The reviewer returned **REQUEST CHANGES**, but stated explicitly that the
-change requested was **not** a content revision:
+**Final verdict: APPROVE**, pinned by the reviewer to a specific SHA.
+
+> "I APPROVE the design.md whose content is that of af1da6e / 5e11f01: the
+> RETAIN_RATIO = 0.75 ratio guard with dyadic-exact boundary fixtures and
+> commensurability asserted as verified. I do NOT approve the
+> COVERAGE_GAP = 0.2 text of 453fd5c."
+
+Verified: HEAD's `design.md` is byte-identical to `af1da6e`, so the approved
+content is what is on disk. The reviewer pinned the verdict because the file
+moved three times during the round — an unqualified approval could otherwise be
+claimed for whichever text landed next.
+
+Its first report returned REQUEST CHANGES, on a blocking item that was purely
+file-state, not content:
 
 > "On the merits, this design is ready… If the committed text were what sat on
 > disk I would approve it without reservation, with only the two nitpicks in
@@ -117,4 +129,72 @@ the 0.59 truthful card.
    correct number appears later; it is just attributed to the wrong pair.
 3. Rival-at-zero behaviour is benign but undiscussed.
 
-VERDICT: APPROVE (conditional on file reconciliation, which is done)
+## The round-4 withdrawal was wrong — the last round says so plainly
+
+Round 4's reviewer withdrew its low-coverage finding on re-audit. Round 5
+disagrees, and gives four regressions against shipped behaviour under the gap
+rule (favoured = F-clean Claude, other = local `{F6}`):
+
+| favoured | other | deficit | decisive | today |
+| --- | --- | --- | --- | --- |
+| 0.01 | 0.20 | 0.19 | yes | local wins |
+| 0.05 | 0.25 | 0.20 | yes | local wins |
+| 0.20 | 0.30 | 0.10 | yes | local wins |
+| 0.25 | 0.30 | 0.05 | yes | local wins |
+
+In the first, a card with 1% of ingredients attached replaces one with 20% — a
+20× coverage loss, and the feature spends a Claude call to make the card worse.
+
+The structural point: below 0.2 coverage the deficit is bounded above by the
+higher card's own coverage, hence necessarily ≤ 0.2, hence **always in-gap**.
+The guard is provably inert there. That is a property of the rule's shape, not
+its constant — no retune fixes it.
+
+Why the re-audit erred, specifically:
+
+1. **Factual.** It justified withdrawal by citing text that names the
+   0.65-vs-0.50 *both-weak* pair, not the 0.20-vs-0.01 pair. At 0.65/0.50 the
+   displaced card keeps 77% of the winner's coverage and "no substantial card
+   is displaced" is true. At 0.20/0.01 the displaced card has 20× the winner's
+   coverage and the phrase is unargued. A correctly-scoped argument was
+   generalised past its scope.
+2. **Self-contradiction.** The gap text's own Current state says the F tier is
+   blind to sparseness "at *any* confidence" and that "sparseness is
+   continuous: no single cutoff point encodes it". An absolute gap *is* a
+   single cutoff on the difference axis.
+
+Moot against the current file — at ratio 0.05 that pair is blocked with
+enormous margin — but it is why `453fd5c` must not be re-landed.
+
+## A stronger EPSILON bound than either the design or I produced
+
+Because both confidences share denominator `n`, the deficit is exactly
+`(m − p) / n` for integers. For EPSILON to wrongly flip a pair you would need
+that value in `(0.2, 0.2 + 1e-9]`. Brute-forced over every `n` up to 200:
+
+    min nonzero |(m−p)/n − 0.2|  =  0.001005  =  1,005,025 × EPSILON
+
+Float error ~1e-16 ≪ EPSILON 1e-9 ≪ 0.001 minimum real separation. EPSILON can
+only rescue the exact-0.2 case — which the inclusive `>=` intends to be
+decisive — from representation error. **This argument is load-bearing on
+commensurability**: if the denominators ever diverged, the integer-numerator
+step fails and the bound with it.
+
+## Process faults, recorded
+
+The reviewer named three, all accurate and all the orchestrator's:
+
+1. `design.md` was rewritten three times mid-review and twice committed. Two of
+   the reviewer's three reports were aimed at text that no longer existed when
+   filed. It pinned its verdict to a SHA for exactly this reason.
+2. Commit `5e11f01`'s message reads "round 5 passes" — the gate declared itself
+   passed before the gate had reported.
+3. Task #14 DESIGN was marked complete and #15 STRUCTURE started before the
+   verdict existed.
+
+None changed the technical outcome, and the reviewer did not withhold approval
+over them. Verified afterwards: `structure.md` cites `RETAIN_RATIO` and never
+`COVERAGE_GAP`, and pins the dyadic fixtures, so it did derive from the
+approved text.
+
+VERDICT: APPROVE — pinned to the content of af1da6e / 5e11f01
