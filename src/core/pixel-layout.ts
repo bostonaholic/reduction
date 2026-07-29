@@ -37,7 +37,8 @@ const OP_FLOOR = 82;
  * table stays over target at legible floor widths.
  */
 const TARGET_WIDTH = 1180;
-/** Never wrap to a sliver narrower than this (image.ts:88 precedent). */
+/** Never wrap to a sliver narrower than this: the same 20px minimum
+ * image.ts's export passes to wrap(). */
 const MIN_WRAP_WIDTH = 20;
 
 export interface PixelLine {

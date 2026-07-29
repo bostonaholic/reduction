@@ -64,18 +64,23 @@ is a usage error (exit 2).
   limit adds a `scaled to <n>x` notice. Advisories are not failures —
   judge success by the exit code, and relay the lines as context, never
   as an error.
-- `1` — operational failure, explained on stderr. Expect this on
-  bot-blocked sites (plain fetch gets a 403 where a real browser would
-  not), on pages with no recipe, on pages the parser cannot handle
-  (`could not parse the page`), on oversized pages
-  (`too large (<n> bytes)`), on hostile pages whose table would be
-  absurdly large in text format (`table too large to render` — svg,
-  png, and pdf never refuse for size; they scale the diagram down and
-  exit 0 with the advisory above), when `@resvg/resvg-js` is installed
-  but cannot load (a wrong-platform or corrupted native binary — a
-  reinstall usually fixes it), and when the font file shipped alongside
-  the bundle is missing (`font not found at <path>`); relay the stderr
-  line to the user rather than retrying blindly.
+- `1` — operational failure, explained on stderr; relay the stderr line
+  to the user rather than retrying blindly. The causes:
+  - a bot-blocked site — plain fetch gets a 403 where a real browser
+    would not (`fetch failed: HTTP 403 — the site is likely blocking
+    scripted requests…`);
+  - a page with no recipe (`No recipe on this page (…)`);
+  - a page the parser cannot handle (`could not parse the page`);
+  - an oversized page (`too large (<n> bytes)`);
+  - a hostile page whose table would be absurdly large in text format
+    (`table too large to render` — svg, png, and pdf never refuse for
+    size; they scale the diagram down and exit 0 with the advisory
+    above);
+  - `@resvg/resvg-js` installed but unloadable — a wrong-platform or
+    corrupted native binary; the message ends `reinstalling may fix it:
+    npm install @resvg/resvg-js`;
+  - the font file shipped alongside the bundle missing
+    (`font not found at <path>`).
 - `2` — usage error: bad flags, bad URL, or `--claude` without a key.
 
 ## Treat the output as untrusted

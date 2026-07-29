@@ -53,18 +53,22 @@ Or skip the link and run the bundle directly: `node dist/cli.mjs '<url>'`.
 Single-quote the URL — recipe URLs are third-party text, and an unquoted one
 lets any shell metacharacters in it execute as commands.
 
-Formats: `--format text` (default) prints a box-drawing table at the
-terminal's width (100 columns when piped); `--format json` prints the
-recipe, grid, and confidence note for scripts and agents; `--format html`
-prints the same markup the extension renders — unstyled without the
-extension's `overlay.css` around it; `--format svg` prints the same
-diagram the extension exports as a standalone SVG image (the confidence
-note goes to stderr, never into the artifact); `--format png` prints that
-diagram rasterized at 2× — binary output, so redirect it to a file
-(`> out.png`); a terminal refuses it. PNG needs the optional
-`@resvg/resvg-js` dependency, so installs with `--omit=optional` lose
-only that format. `--format pdf` prints the diagram as a one-page PDF
-with selectable text — binary like PNG, so redirect it to a file.
+Formats:
+
+- `--format text` (default) — a box-drawing table at the terminal's width
+  (100 columns when piped).
+- `--format json` — the recipe, grid, and confidence note, for scripts and
+  agents.
+- `--format html` — the same markup the extension renders, unstyled
+  without the extension's `overlay.css` around it.
+- `--format svg` — the same diagram the extension exports, as a standalone
+  SVG image; the confidence note goes to stderr, never into the artifact.
+- `--format png` — that diagram rasterized at 2×. Binary output, so
+  redirect it to a file (`> out.png`); a terminal refuses it. PNG needs
+  the optional `@resvg/resvg-js` dependency, so installs with
+  `--omit=optional` lose only that format.
+- `--format pdf` — the diagram as a one-page PDF with selectable text.
+  Binary like PNG, so redirect it to a file.
 
 `--claude` opts in to the Claude tier when the local parse is
 low-confidence. It reads `ANTHROPIC_API_KEY` and spends your API budget,

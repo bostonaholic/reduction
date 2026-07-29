@@ -119,6 +119,10 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   // Anything else (wrong-ABI binary, interrupted install) -> operational
   // failure, one stripped line — a native load error carries absolute paths
   // and loader text — with the reinstall hint subordinate to the real error.
+  // Chosen deliberately: a dlopen error (ERR_DLOPEN_FAILED) names the
+  // install directory, and the path stays in the message — it points at the
+  // binary to remove, on a disk the reader installed the tool to. The test
+  // suite pins the path as intentionally present.
   const loadResvg = deps.loadResvg ?? defaultLoadResvg;
   if (args.format === 'png') {
     try {

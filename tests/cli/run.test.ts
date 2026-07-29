@@ -628,6 +628,32 @@ describe('run --format png through the loadResvg seam', () => {
     expect(stdout.chunks).toHaveLength(0);
   });
 
+  it('keeps the install path in an ERR_DLOPEN_FAILED message, by design', async () => {
+    // A wrong-ABI or corrupt native binary echoes dlopen text naming the
+    // install directory. run.ts keeps that path deliberately — it points at
+    // the binary to remove, on a disk the reader installed the tool to.
+    // This assertion pins the choice so a future sanitize pass cannot
+    // silently change the contract.
+    const binding = '/home/someone/node_modules/@resvg/resvg-js-darwin-x64/resvgjs.darwin-x64.node';
+    const broken = Object.assign(
+      new Error(`dlopen(${binding}, 0x0001): tried: '${binding}' (not a mach-o file)`),
+      { code: 'ERR_DLOPEN_FAILED' },
+    );
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, {
+      loadResvg: () => Promise.reject(broken),
+    });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(1);
+    expect(fetchPage).not.toHaveBeenCalled();
+    expect(stderr.text).toContain(binding); // intentionally present
+    expect(stderr.text).toMatch(/reinstall|npm install/i);
+    expect(stderr.text).not.toMatch(/\n\s+at /); // one line, never a stack
+    expect(stdout.chunks).toHaveLength(0);
+  });
+
   it('advises on stderr when the area clamp pulls the scale below 2×', async () => {
     // 550 chained steps (capped at 500) build a ~500-column, ~500-row grid
     // whose 2× raster would blow the 64 Mpx bound: the applied scale drops

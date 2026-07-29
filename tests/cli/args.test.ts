@@ -83,6 +83,32 @@ describe('parseArgs', () => {
     }
   });
 
+  it('collapses U+2028/U+2029 separators to a space, so a relayed line stays one line', () => {
+    // No terminal breaks on these, but chat renderers an agent relays
+    // stderr into may — the same forged-second-message risk one layer out.
+    const LINE_SEP = String.fromCharCode(0x2028);
+    const PARA_SEP = String.fromCharCode(0x2029);
+    const result = parseArgs(['https://example.test/', '--format', `bad${LINE_SEP}${PARA_SEP}yaml`]);
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).not.toContain(LINE_SEP);
+      expect(result.message).not.toContain(PARA_SEP);
+      expect(result.message).toContain('bad yaml');
+    }
+  });
+
+  it('strips the invisible U+061C and U+180E code points', () => {
+    const ALM = String.fromCharCode(0x061c); // ARABIC LETTER MARK
+    const MVS = String.fromCharCode(0x180e); // MONGOLIAN VOWEL SEPARATOR
+    const result = parseArgs(['https://example.test/', '--format', `bad${ALM}${MVS}yaml`]);
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).not.toContain(ALM);
+      expect(result.message).not.toContain(MVS);
+      expect(result.message).toContain('badyaml');
+    }
+  });
+
   it('rejects an unknown flag as a usage error', () => {
     expect(parseArgs(['https://example.test/brownies', '--frobnicate']).kind).toBe('error');
   });

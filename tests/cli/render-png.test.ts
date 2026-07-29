@@ -118,19 +118,24 @@ describe.skipIf(!resvgAvailable)('renderPng rasterization', () => {
     // Resvg through the seam so the raw bitmap renderPng configured is
     // inspectable, then demand a floor of dark pixels in the first line's
     // band. Text ink is #16211a; the green borders (#3d8b40) fail the cut.
+    // The bitmap fields the test inspects plus the asPng() the ResvgModule
+    // seam requires — declared together so the loader typechecks uncast.
+    type CapturedImage = { pixels: Uint8Array; width: number; height: number } & {
+      asPng(): Uint8Array;
+    };
     const real = (await import(RESVG_PACKAGE)) as { Resvg: new (...args: never[]) => unknown };
     let bitmap: { pixels: Uint8Array; width: number; height: number } | undefined;
     const Capturing = class extends (real.Resvg as new (...args: unknown[]) => {
-      render(): { pixels: Uint8Array; width: number; height: number };
+      render(): CapturedImage;
     }) {
-      override render(): { pixels: Uint8Array; width: number; height: number } {
+      override render(): CapturedImage {
         const image = super.render();
         bitmap = image;
         return image;
       }
     };
 
-    const { bytes } = await renderPng(grid, async () => ({ Resvg: Capturing }) as never, FONT_FILE);
+    const { bytes } = await renderPng(grid, async () => ({ Resvg: Capturing }), FONT_FILE);
     expect(bytes.length).toBeGreaterThan(8);
     expect(bitmap, 'renderPng must render through the injected module').toBeDefined();
 
