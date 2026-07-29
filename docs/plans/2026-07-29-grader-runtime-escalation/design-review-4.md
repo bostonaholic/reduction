@@ -7,10 +7,18 @@ verdict: REQUEST CHANGES
 
 # Design review — round 4 (cap round)
 
+> **This record was superseded mid-round.** The reviewer's first audit ran
+> against the text committed at `a992c0f`; the author then amended `design.md`
+> in place (without bumping the revision) and the reviewer re-read the current
+> text. Its re-audit **withdraws the blocking finding** below. The superseded
+> analysis is kept for the record — struck through — because the orchestrator
+> acted on it and dispatched a revision-5 brief that had to be retracted. The
+> authoritative section is **"Re-audit"** at the end.
+
 Closure audit against revision 4 (amended). Most of round 3 is genuinely
 closed and verified at source. Two blocking-tier items remain.
 
-## HOLE 1 (blocking) — the gap has no coverage floor
+## ~~HOLE 1 (blocking) — the gap has no coverage floor~~ — WITHDRAWN
 
 `COVERAGE_GAP` is an **absolute** difference, but the maximum achievable
 difference is bounded above by the higher card's confidence. So in the
@@ -86,5 +94,70 @@ range [0.15, 0.25] genuinely picks the same winner in all six pinned scenarios.
 
 Its blind spot is that it is **calibrated entirely on high-coverage pairs** —
 which is HOLE 1.
+
+VERDICT: REQUEST CHANGES (superseded — see Re-audit)
+
+
+---
+
+# Re-audit — against the current text (authoritative)
+
+The reviewer re-read `design.md` in full (524 lines, still `revision: 4`) and
+revised its own findings.
+
+## The round-3 blocking finding is CLOSED
+
+> "this is the first revision where the guard is a stated expression, uniform
+> across the axis, with both the trade and its flip point argued rather than
+> asserted, and where the low-coverage case 3b centred its review on is named,
+> defended in scope, and pinned."
+
+**HOLE 1 is withdrawn.** The 0.20-vs-0.01 case is already named at `:212-216` —
+"when both cards are weak (0.65 `{F6}` vs 0.50 clean) the truthful one wins
+within the gap — the mirror doctrine is relational… no substantial card is
+displaced there" — and pinned as a test at `:447-449`. The reviewer calls it "a
+scoped, argued, pinned consequence, not an unexamined hole."
+
+Every pinned pair was evaluated in node. All five mirror pairs skip the guard
+and keep the local card, matching today. The yogurt pair (0.70 vs 0.79), hole D
+(0.59 vs 0.61) and the both-weak pair (0.50 vs 0.65) are all decisive. Only the
+boundary example is wrong.
+
+The argument-inconsistency finding from 3b is also CLOSED: the band **was** a
+gap floor in disguise, position-dependent and borrowing `CLAUDE_THRESHOLD`'s
+authority across a semantic boundary. The bounds were tested, not accepted —
+below 0.29 forced by the five mirror deficits, above ~0.1 forced by the yogurt
+deficit of 0.09, and [0.15, 0.25] picks the same winner in all ten pinned
+scenarios.
+
+## What actually remains
+
+1. **ISSUE — the flagship boundary example is false under the design's own
+   predicate.** `0.79 - 0.2 === 0.5900000000000001`, so `0.59 >= 0.79 - 0.2` is
+   false: the guard skips, the "decisive" half of the cliff test goes red on day
+   one, and the inclusivity emphasised twice is unreachable. Confidence values
+   are ratios, so exact decimal boundaries are essentially never attainable.
+   Needs a tolerance or representable-ratio fixtures.
+2. **ISSUE — commensurability was deferred when it is already decidable and
+   favourable.** The reviewer resolved it from source: `buildMatchers`
+   (`infer.ts:211-227`) maps 1:1 over lines, `plan.ts:75` maps the same array;
+   both numerators exclude root-appended orphans (`infer.ts:377`,
+   `plan.ts:115`). The two numbers are commensurable and the offset is
+   meaningful. Should be a verified sentence, not a risk bullet — and the design
+   cited 3b's weaker "unprobed note" without noting 3a had resolved it the other
+   way.
+3. **SUGGESTION** — cross-rule magnitude inversion (`{F3×30, F6×30}` beats
+   `{F3,F5,F6}`) is disclosed only in its within-rule half; needs a Risks
+   bullet like step 5's.
+4. **NITPICK** — Decision 2 overstates the case against never-trade: at equal
+   confidence with unequal F counts, `GAP = 0` gives the truthful card where
+   today's `>=` gives Claude — an improvement.
+5. **NITPICK** — `confidenceNote` starts at `src/core/render.ts:44`, not `:45`.
+6. **NITPICK** — "substantial" carries the weight of the relational defence with
+   no numeric anchor, so the claim cannot be falsified. Pin it to a number or
+   drop the word.
+
+> "Neither requires rethinking the approach; both require an edit before an
+> implementer works from this text."
 
 VERDICT: REQUEST CHANGES
