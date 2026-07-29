@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Recipart settings</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: #16211a;
+        background: #fffdf3;
+        max-width: 620px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 6px;
+      }
+      p.lede {
+        margin: 0 0 26px;
+        color: #58604f;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        font-size: 13.5px;
+        margin-bottom: 6px;
+      }
+      input[type="password"] {
+        width: 100%;
+        font: inherit;
+        font-size: 14px;
+        padding: 9px 11px;
+        border: 1px solid #c8ccc2;
+        border-radius: 6px;
+        box-sizing: border-box;
+      }
+      .hint {
+        font-size: 12.5px;
+        color: #6b7268;
+        margin: 8px 0 22px;
+        line-height: 1.5;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 22px;
+        font-size: 14px;
+      }
+      button {
+        font: inherit;
+        font-size: 14px;
+        padding: 9px 18px;
+        border-radius: 6px;
+        border: 1px solid #2f7a37;
+        background: #2f7a37;
+        color: #fff;
+        cursor: pointer;
+      }
+      #status {
+        margin-left: 12px;
+        font-size: 13px;
+        color: #2c6a2c;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Recipart</h1>
+    <p class="lede">
+      Recipart works entirely on your machine. It only contacts Anthropic when its
+      local parser cannot confidently work out which ingredients each step uses —
+      and only if you add a key below.
+    </p>
+
+    <label for="key">Anthropic API key (optional)</label>
+    <input id="key" type="password" autocomplete="off" placeholder="sk-ant-..." />
+    <p class="hint">
+      Stored in this browser's extension storage and sent only to api.anthropic.com.
+      Without a key, low-confidence recipes fall back to a plain sequential table.
+    </p>
+
+    <div class="row">
+      <input id="enabled" type="checkbox" checked />
+      <label for="enabled" style="font-weight: 400; margin: 0">
+        Use Claude when local parsing is uncertain
+      </label>
+    </div>
+
+    <button id="save">Save</button><span id="status"></span>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

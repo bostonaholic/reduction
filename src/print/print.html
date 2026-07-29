@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Recipart</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: #16211a;
+      }
+      iframe {
+        border: 0;
+        width: 100%;
+        height: 100vh;
+        display: block;
+      }
+      .bar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 16px;
+        border-bottom: 1px solid #e3e0d2;
+        background: #fffdf3;
+      }
+      .bar button {
+        font: inherit;
+        font-size: 13px;
+        padding: 6px 14px;
+        border-radius: 6px;
+        border: 1px solid #2f7a37;
+        background: #2f7a37;
+        color: #fff;
+        cursor: pointer;
+      }
+      .bar span {
+        font-size: 12.5px;
+        color: #6b7268;
+      }
+      @media print {
+        .bar {
+          display: none;
+        }
+        iframe {
+          height: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <button id="print">Print</button>
+      <span>Printed from Recipart</span>
+    </div>
+    <iframe id="view" title="Printable recipe table"></iframe>
+    <script type="module" src="print.js"></script>
+  </body>
+</html>

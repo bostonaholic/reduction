@@ -1,0 +1,9 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+
+# Captured recipe pages are third-party content kept only as local parser
+# fixtures. Regenerate with `npm run capture`; the URL manifest is committed.
+tests/fixtures/*.html
+tests/e2e/screenshots/

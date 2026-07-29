@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast gate: everything that needs neither a browser nor the network.
+  unit:
+    name: Typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        # The captured-site fixtures are not committed (third-party page
+        # copies), so tests/sites.test.ts skips itself here. The layout,
+        # ingredient, and unit suites run in full.
+        run: npm test
+
+      - name: Build the extension
+        run: npm run build
+
+      - name: Check the bundle looks loadable
+        run: |
+          test -f dist/manifest.json
+          test -f dist/content.js
+          test -f dist/background.js
+          node -e "
+            const m = require('./dist/manifest.json');
+            if (m.manifest_version !== 3) throw new Error('not MV3');
+            if (!m.background?.service_worker) throw new Error('no service worker');
+            console.log('manifest ok:', m.name, m.version);
+          "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension
+          path: dist/
+          retention-days: 14
+
+  # Golden master + installability. Runs on macOS because the committed
+  # reference images are platform-suffixed (-darwin.png) — fonts rasterize
+  # differently per OS, so Linux would need its own set of references.
+  golden:
+    name: Golden master and install check
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the extension
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install chromium
+
+      - name: Install check and golden master
+        run: npm run e2e:golden
+
+      - name: Upload image diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-diffs
+          path: test-results/
+          retention-days: 14
