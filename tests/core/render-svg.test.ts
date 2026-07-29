@@ -1,10 +1,10 @@
 /**
- * Acceptance tests for the pure SVG renderer (slice 1).
+ * Acceptance tests for the pure SVG renderer.
  *
  * renderSvg(grid) is pure — Grid in, one SVG string out — and emits the
  * extension's export grammar (src/export/image.ts:117-146): background rect,
  * one rect per cell, one <text> per wrapped line, outer 3px frame last, with
- * the decision-12 font stack. Structure is asserted on the jsdom-parsed
+ * the metric-compatible font stack. Structure is asserted on the jsdom-parsed
  * document; sizes are asserted as relations to layoutPixels, never literals.
  */
 
@@ -44,7 +44,7 @@ function parseSvg(markup: string): SVGElement | null {
   return dom.window.document.querySelector('svg');
 }
 
-describe('renderSvg structure (slice 1)', () => {
+describe('renderSvg structure', () => {
   const grid = layout(recipeWith('Tiny Bake', op('bake', op('mix', ing('flour'), ing('sugar')))));
 
   it('sizes the root to the pixel layout', () => {
@@ -96,7 +96,7 @@ describe('renderSvg structure (slice 1)', () => {
     ]);
   });
 
-  it('stamps the decision-12 font stack on every text element', () => {
+  it('stamps the metric-compatible font stack on every text element', () => {
     const root = parseSvg(renderSvg(grid));
     expect(root).not.toBeNull();
     const texts = [...root!.querySelectorAll('text')];
@@ -109,7 +109,7 @@ describe('renderSvg structure (slice 1)', () => {
   });
 });
 
-describe('renderSvg escaping (slice 1)', () => {
+describe('renderSvg escaping', () => {
   it('XML-escapes & < > " in cell text and round-trips it through a parser', () => {
     const nasty = 'Bob\'s "hot & spicy" <peppers>';
     const markup = renderSvg(layout(recipeWith('Escape', op('mix', ing(nasty)))));

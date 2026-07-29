@@ -4,7 +4,7 @@
  * Pure and DOM-free: geometry comes from layoutPixels and the markup follows
  * the extension export's grammar (src/export/image.ts:117-146) — background
  * rect, one rect per cell, one <text> per wrapped line, outer 3px frame
- * last. The font stack (decision 12) leads with Liberation Sans so resvg and
+ * last. The font stack leads with Liberation Sans so resvg and
  * Linux viewers hit the shipped metrics-compatible face; macOS falls back to
  * Helvetica and Windows to Arial, both metric-compatible with the width
  * table.

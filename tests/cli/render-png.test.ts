@@ -1,5 +1,5 @@
 /**
- * Acceptance tests for the PNG rasterizer (slice 3).
+ * Acceptance tests for the PNG rasterizer.
  *
  * pngScale is the named pure rule s_png = min(2, sqrt(MAX_PIXELS / (w × h)))
  * with MAX_PIXELS = 64 × 2²⁰, bounding the RGBA buffer for any shape; it is
@@ -20,7 +20,8 @@ import type { Ingredient, Recipe, RecipeNode } from '../../src/core/types.js';
 const MAX_PIXELS = 64 * 2 ** 20;
 
 // A variable specifier keeps the optional package out of static resolution:
-// it is not installed until slice 3, and these tests must skip, not error.
+// the package is optional, and these tests must skip, not error, when it is
+// absent.
 const RESVG_PACKAGE = '@resvg/resvg-js';
 const resvgAvailable = await import(RESVG_PACKAGE).then(
   () => true,
@@ -65,7 +66,7 @@ function countDarkPixels(
   return dark;
 }
 
-describe('pngScale area clamp (slice 3)', () => {
+describe('pngScale area clamp', () => {
   it('keeps the 2× default up to the 64 Mpx output boundary', () => {
     // A typical diagram is far under the clamp.
     expect(pngScale(1180, 800)).toBe(2);
@@ -87,7 +88,7 @@ describe('pngScale area clamp (slice 3)', () => {
   });
 });
 
-describe.skipIf(!resvgAvailable)('renderPng rasterization (slice 3)', () => {
+describe.skipIf(!resvgAvailable)('renderPng rasterization', () => {
   const grid = layout(recipeWith('Tiny Bake', op('bake', op('mix', ing('flour'), ing('sugar')))));
 
   it('produces PNG magic bytes with IHDR dimensions at 2× the layout', async () => {

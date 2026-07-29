@@ -434,7 +434,7 @@ describe('run redirect', () => {
   });
 });
 
-// ————— vector formats (docs/plans/2026-07-29-cli-vector-formats) —————
+// ————— vector formats: svg, png, pdf —————
 
 /** Collects string and binary writes alike, standing in for process.stdout. */
 function binarySink() {
@@ -500,7 +500,7 @@ function chainPage(n: number): string {
   });
 }
 
-describe('run --format svg (slice 1)', () => {
+describe('run --format svg', () => {
   it('writes the SVG diagram to stdout with a trailing newline and the note to stderr only', async () => {
     const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
     const { deps, stdout, stderr } = makeFormatDeps(fetchPage);
@@ -511,14 +511,14 @@ describe('run --format svg (slice 1)', () => {
     expect(stdout.text).toMatch(/^<svg/);
     expect(stdout.text).toMatch(/<\/svg>\n$/);
     expect(stdout.text).toContain('butter');
-    // Decision 15: the artifact is the table only — no title, no note.
+    // The artifact is the table only — no title, no note.
     expect(stdout.text).not.toContain('Test Brownies');
     expect(stderr.text).toMatch(/ingredients matched a step|listed in order/);
     expect(stdout.text).not.toContain(stderr.text.trim());
   });
 });
 
-describe('run binary formats refuse a TTY (slices 3 and 4)', () => {
+describe('run binary formats refuse a TTY', () => {
   it.each(['png', 'pdf'] as const)(
     'refuses --format %s on a TTY with exit 2 before fetching',
     async (format) => {
@@ -539,7 +539,7 @@ describe('run binary formats refuse a TTY (slices 3 and 4)', () => {
   );
 });
 
-describe('run --format png through the loadResvg seam (slice 3)', () => {
+describe('run --format png through the loadResvg seam', () => {
   it('pipes the rasterized bytes to stdout intact when stdout is not a TTY', async () => {
     const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
     const loadResvg = vi.fn(async () => fakeResvgModule());
@@ -610,7 +610,7 @@ describe('run --format png through the loadResvg seam (slice 3)', () => {
   });
 });
 
-describe('run --format pdf (slice 4)', () => {
+describe('run --format pdf', () => {
   it('pipes PDF bytes to stdout and the note to stderr when piped', async () => {
     const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
     const { deps, stdout, stderr } = makeFormatDeps(fetchPage);

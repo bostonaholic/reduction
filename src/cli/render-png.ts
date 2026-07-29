@@ -1,7 +1,7 @@
 /**
  * Grid -> PNG bytes, for the CLI.
  *
- * Rasterizes the slice-1 SVG string with @resvg/resvg-js — the one module
+ * Rasterizes renderSvg's output with @resvg/resvg-js — the one module
  * allowed to touch that native optional dependency, imported lazily so
  * text/json/html/svg runs never pay for it. `loadResvg` is the injection
  * seam: run() passes it through RunDeps, so tests stub the module and the
@@ -37,7 +37,7 @@ const MAX_PIXELS = 64 * 2 ** 20;
  * the extension's 2× export scale until the output area would pass 64 Mpx,
  * then exactly the scale that pins it there. Deliberately no lower floor —
  * and none may be added later: any floor silently reopens the
- * unbounded-memory hole this clamp exists to close (decision 13).
+ * unbounded-memory hole this clamp exists to close.
  */
 export function pngScale(w: number, h: number): number {
   return Math.min(2, Math.sqrt(MAX_PIXELS / (w * h)));
@@ -53,7 +53,7 @@ export function loadResvg(): Promise<ResvgModule> {
 
 /**
  * The shipped font, resolved relative to this module: from dist/cli.mjs the
- * asset sits one level up (the font stays out of dist/, decision 5); from
+ * asset sits one level up (the font stays out of dist/); from
  * src/cli/ under the test runner it sits two up. Missing on both counts
  * (a bundle copied out of the repo) throws with the path named, which the
  * guarded render block in run() turns into exit 1.

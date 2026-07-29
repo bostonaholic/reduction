@@ -1,7 +1,7 @@
 /**
- * Acceptance tests for the Helvetica width table (slice 1).
+ * Acceptance tests for the Helvetica width table.
  *
- * The contract (design decision 3, review note 2): every width is stored in
+ * The contract: every width is stored in
  * 1000-unit em space — the AFM convention — and textWidth(text, fontSize)
  * sums per-code-point widths and multiplies by fontSize / 1000. Nothing in
  * the module is "at 15px". Asserting the unit directly is what catches a
@@ -12,9 +12,9 @@ import { describe, expect, it } from 'vitest';
 import { textWidth } from '../../src/core/font-metrics.js';
 
 /**
- * The exactly-eleven non-ASCII entries the pipeline emits (plan slice 1
- * step 2), in 1000-unit em space. `nbsp` decodes to a plain ASCII space
- * (extract.ts:36-40), so there is no twelfth entry.
+ * The exactly-eleven non-ASCII entries the pipeline emits, in 1000-unit em
+ * space. `nbsp` decodes to a plain ASCII space (extract.ts:36-40), so there
+ * is no twelfth entry.
  */
 const NON_ASCII: ReadonlyArray<[string, number]> = [
   ['–', 556],
@@ -30,7 +30,7 @@ const NON_ASCII: ReadonlyArray<[string, number]> = [
   ['¾', 834],
 ];
 
-describe('textWidth unit convention (slice 1)', () => {
+describe('textWidth unit convention', () => {
   it('stores every width in 1000-unit em space: at fontSize 1000 the result is the raw table entry', () => {
     for (const [char, units] of NON_ASCII) {
       expect(textWidth(char, 1000), `width of ${char}`).toBe(units);
@@ -46,10 +46,11 @@ describe('textWidth unit convention (slice 1)', () => {
   });
 });
 
-describe('textWidth ASCII advances (slice 1)', () => {
+describe('textWidth ASCII advances', () => {
   it('carries the Helvetica AFM advances for ASCII 32–126', () => {
-    // Spot checks across the width range; the one-time hmtx comparison in
-    // plan slice 1 step 3 covers all 95 entries against the shipped TTF.
+    // Spot checks across the width range; the one-time hmtx comparison
+    // recorded in src/core/font-metrics.ts covers all 95 entries against
+    // the shipped TTF.
     expect(textWidth(' ', 1000)).toBe(278);
     expect(textWidth('i', 1000)).toBe(222);
     expect(textWidth('a', 1000)).toBe(556);
@@ -65,12 +66,11 @@ describe('textWidth ASCII advances (slice 1)', () => {
   });
 });
 
-describe('textWidth fallback (slice 1)', () => {
+describe('textWidth fallback', () => {
   it('measures any code point outside the table at 1.0 em', () => {
     // ⅓ survives into banner and op cells (normalizeText runs only on
     // ingredient lines), and é-class accented Latin is deliberately absent
-    // from the table (note 4): both fall back to 1.0 em — padding, never
-    // overflow.
+    // from the table: both fall back to 1.0 em — padding, never overflow.
     expect(textWidth('⅓', 15)).toBe(15);
     expect(textWidth('é', 15)).toBe(15);
   });

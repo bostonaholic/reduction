@@ -1,5 +1,5 @@
 /**
- * Acceptance tests for the dependency-free PDF writer (slice 4).
+ * Acceptance tests for the dependency-free PDF writer.
  *
  * renderPdf(grid) is pure — Grid in, { bytes, scale } out — and hand-writes
  * a single-page PDF: %PDF- header, xref byte-offset table, base-14 Helvetica
@@ -55,7 +55,7 @@ const tinyBake = layout(
   recipeWith('Tiny Bake', op('bake', op('mix', ing('flour'), ing('sugar')))),
 );
 
-describe('renderPdf document structure (slice 4)', () => {
+describe('renderPdf document structure', () => {
   it('starts with %PDF- and ends with %%EOF', () => {
     const pdf = latin1(renderPdf(tinyBake).bytes);
     expect(pdf.startsWith('%PDF-')).toBe(true);
@@ -101,7 +101,7 @@ describe('renderPdf document structure (slice 4)', () => {
   });
 });
 
-describe('renderPdf text encoding (slice 4)', () => {
+describe('renderPdf text encoding', () => {
   it('escapes ( ) \\ in string literals', () => {
     const grid = layout(
       recipeWith('Escapes', op('mix (gently) with \\ care', ing('flour'))),
@@ -114,14 +114,14 @@ describe('renderPdf text encoding (slice 4)', () => {
   it('encodes WinAnsi: in-set code points survive, out-of-set ones become ?', () => {
     const grid = layout(recipeWith('Fractions', op('mix', ing('⅓ cup milk'), ing('½ cup cream'))));
     const pdf = latin1(renderPdf(grid).bytes);
-    // ⅓ is outside WinAnsi (decision 16): a visible ?, not a dropped byte.
+    // ⅓ is outside WinAnsi: a visible ?, not a dropped byte.
     expect(pdf).toContain('? cup milk');
     // ½ is CP1252 0xBD and must survive as itself.
     expect(pdf).toContain('½ cup cream');
   });
 });
 
-describe('renderPdf oversize page (slice 4)', () => {
+describe('renderPdf oversize page', () => {
   // 400 single-line ingredient rows: ~40px each plus borders, far past the
   // 14,400pt page limit in height while staying one floor-width column wide.
   const tall: Grid = {
@@ -153,7 +153,7 @@ describe('renderPdf oversize page (slice 4)', () => {
   });
 });
 
-describe('renderPdf and renderSvg share one geometry engine (slice 4)', () => {
+describe('renderPdf and renderSvg share one geometry engine', () => {
   const grid = layout(recipeWith('', ing('flour')));
 
   /** The SVG <text> holding exactly `content`, selected by content. */
@@ -191,7 +191,7 @@ describe('renderPdf and renderSvg share one geometry engine (slice 4)', () => {
   });
 
   it('pins the baseline with the one hand-computed anchor', () => {
-    // The single hand-computed anchor (plan slice 4 step 3) — no other
+    // The single hand-computed anchor — no other
     // literal coordinate appears in these tests. Derivation for the one-cell
     // 'flour' grid: column 0 floors at 240 content px, frame 3px each side,
     // so W = 246. One wrapped line: lineHeight = 15 × 1.35 = 20.25; row

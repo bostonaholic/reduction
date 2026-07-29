@@ -23,16 +23,16 @@ const FRAME = 3;
 /** Interior borders between cells, matching the overlay's 2px solid. */
 const BORDER = 2;
 /**
- * Column floors from the overlay (decision 9): its min-widths are content
- * widths under content-box, so only the 7px/10px padding folds in — 220 + 20
+ * Column floors from the overlay: its min-widths are content widths under
+ * content-box, so only the 7px/10px padding folds in — 220 + 20
  * for the ingredient column, 62 + 20 for every other column. Borders stay
  * separate terms, the way render-text.ts keeps them.
  */
 const INGREDIENT_FLOOR = 240;
 const OP_FLOOR = 82;
 /**
- * Tables shrink toward the overlay panel's widest rendering (decision 11):
- * an artifact cannot scroll the way the overlay does, so width past the
+ * Tables shrink toward the overlay panel's widest rendering: an artifact
+ * cannot scroll the way the overlay does, so width past the
  * target is taken back — but never below a column's floor, so a 13+ column
  * table stays over target at legible floor widths.
  */

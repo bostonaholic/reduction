@@ -16,7 +16,7 @@
  * fallback over-measures such text — padding, never overflow — which is
  * accepted.
  *
- * One-time hmtx verification (plan slice 1 step 3), run 2026-07-29 against
+ * One-time hmtx verification, run 2026-07-29 against
  * the shipped assets/fonts/LiberationSans-Regular.ttf (Liberation fonts
  * release 2.1.5, unitsPerEm 2048): all 106 entries — the 95 ASCII advances
  * and the eleven non-ASCII ones alike — match the font's advances
@@ -55,7 +55,7 @@ const NON_ASCII_WIDTHS = new Map<number, number>([
  * Any code point outside the table measures 1.0 em. Per the AFM no WinAnsi
  * glyph exceeds 1000/1000, so the fallback never under-measures text the
  * PDF can encode; a wider glyph in the SVG/PNG rendering font (an emoji)
- * can overflow its box — accepted (design decision 3).
+ * can overflow its box — accepted.
  */
 const FALLBACK_WIDTH = 1000;
 

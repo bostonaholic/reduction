@@ -6,7 +6,7 @@
  * file embedded — the width table matches Helvetica's advances, so viewer
  * text lands where the boxes expect), and the writer emits the catalog,
  * pages, page, contents, and font objects with a byte-offset xref table by
- * hand. Code points outside WinAnsi become a visible `?` (decision 16); a
+ * hand. Code points outside WinAnsi become a visible `?`; a
  * silently dropped byte would not be honest.
  *
  * PDF's origin is bottom-left, so every SVG-space baseline y-flips:
@@ -105,7 +105,7 @@ export function renderPdf(grid: Grid): { bytes: Uint8Array; scale: number } {
   const scale = Math.min(1, MAX_PAGE_POINTS / Math.max(geo.width, geo.height));
   const content = contentStream(geo, scale);
 
-  // The MediaBox equals the post-scale geometry — the decision-13 invariant.
+  // The invariant: the MediaBox equals the post-scale geometry.
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',

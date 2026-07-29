@@ -89,11 +89,11 @@ describe.skipIf(!existsSync(cliPath))('the built CLI', () => {
   });
 });
 
-// ————— vector formats (docs/plans/2026-07-29-cli-vector-formats) —————
+// ————— vector formats: svg, png, pdf —————
 
 // A variable specifier keeps the optional package out of static resolution:
-// @resvg/resvg-js is not installed until slice 3, and the png smoke test
-// must skip, not error, without it.
+// @resvg/resvg-js is an optional dependency, and the png smoke test must
+// skip, not error, when it is absent.
 const RESVG_PACKAGE = '@resvg/resvg-js';
 const resvgAvailable = await import(RESVG_PACKAGE).then(
   () => true,
@@ -144,7 +144,7 @@ async function withRecipeServer<T>(body: (origin: string) => Promise<T>): Promis
   }
 }
 
-describe.skipIf(!existsSync(cliPath))('the built CLI vector formats (slices 1 and 3)', () => {
+describe.skipIf(!existsSync(cliPath))('the built CLI vector formats', () => {
   it('renders an SVG diagram end-to-end for --format svg', { timeout: 15_000 }, async () => {
     await withRecipeServer(async (origin) => {
       const result = await spawnCli([origin, '--format', 'svg']);

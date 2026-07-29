@@ -1,10 +1,10 @@
 /**
- * Acceptance tests for the pixel geometry engine (slices 1 and 2).
+ * Acceptance tests for the pixel geometry engine.
  *
- * layoutPixels(grid) is pure — Grid in, PixelLayout out. Slice 1: tiling
- * invariants, the 240px/82px column floors (decision 9), and totality on
- * degenerate grids. Slice 2: the floor-aware shrink toward the 1180px target
- * (decisions 10–11) and the hard-breaking wrap (decision 14).
+ * layoutPixels(grid) is pure — Grid in, PixelLayout out. Covered here:
+ * tiling invariants, the 240px/82px column floors, totality on degenerate
+ * grids, the floor-aware shrink toward the 1180px target, and the
+ * hard-breaking wrap.
  *
  * The frame is 3px each side and interior borders are 2px, so a table of
  * floor-width columns is 246 + 84×(cols−1) pixels wide — the design's floor
@@ -80,7 +80,7 @@ function floorSum(cols: number): number {
   return 246 + 84 * (cols - 1);
 }
 
-describe('layoutPixels tiling (slice 1)', () => {
+describe('layoutPixels tiling', () => {
   // mix spans both ingredient rows and bake spans mix: a 2×3 grid with
   // rowSpan-2 cells in columns 1 and 2, built by the real layout engine.
   const grid = layout(recipeWith('Tiny Bake', op('bake', op('mix', ing('flour'), ing('sugar')))));
@@ -138,7 +138,7 @@ describe('layoutPixels tiling (slice 1)', () => {
   });
 });
 
-describe('layoutPixels column floors (slice 1)', () => {
+describe('layoutPixels column floors', () => {
   it('floors the ingredient column at 240px and op columns at 82px', () => {
     // Every text is far narrower than its floor, so the whole width is
     // floors plus borders: 246 + 84 + 84.
@@ -168,17 +168,17 @@ describe('layoutPixels column floors (slice 1)', () => {
   });
 });
 
-describe('layoutPixels shrink toward the 1180px target (slice 2)', () => {
+describe('layoutPixels shrink toward the 1180px target', () => {
   it('shrinks a 12-column table whose natural width exceeds 1180px to exactly 1180', () => {
     // Ingredient column at its 240 floor, op columns well above their 82
-    // floor — the fixture decisions 10–11 exist for. The ported
+    // floor — the shape the shrink exists for. The ported
     // render-text.ts:87-91 loop quits when the single widest column reaches
     // its own floor; the re-derived reverse water-fill levels the op columns
     // and hands the leftover pixels back so the total is exact.
     const opText = 'measure and whisk together until smooth';
     const grid = rowGrid(['a', ...Array.from({ length: 11 }, () => opText)]);
 
-    // Precondition (review note 7): the natural width must exceed the
+    // Precondition: the natural width must exceed the
     // target, or the shrink assertion is vacuous. 6px frame + 22px interior
     // borders + 240px floor + 11 op columns no narrower than their text.
     const naturalAtLeast = 6 + 2 * 11 + 240 + 11 * textWidth(opText, 15);
@@ -205,9 +205,9 @@ describe('layoutPixels shrink toward the 1180px target (slice 2)', () => {
 
   it('hard-breaks a word wider than its post-shrink column instead of overflowing', () => {
     // One unbreakable 220-character word: naturally ~1650px wide, far past
-    // the target, so the op column shrinks and the word must break
-    // (decision 14) — first reachable here, because slice 1 never narrows a
-    // column below its natural width.
+    // the target, so the op column shrinks and the word must break rather
+    // than overflow — reachable only through the shrink, because nothing
+    // else narrows a column below its natural width.
     const word = 'x'.repeat(220);
     expect(textWidth(word, 15)).toBeGreaterThan(1180);
 

@@ -96,7 +96,7 @@ describe('parseArgs', () => {
   });
 });
 
-describe('parseArgs vector formats (slices 1, 3, 4)', () => {
+describe('parseArgs vector formats', () => {
   it.each(['svg', 'png', 'pdf'])('accepts --format %s', (format) => {
     expect(parseArgs(['https://example.test/brownies', '--format', format])).toMatchObject({
       kind: 'run',

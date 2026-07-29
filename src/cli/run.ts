@@ -95,7 +95,7 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
 
   // Binary formats refuse a terminal before any network work: dumping raw
   // bytes into a TTY only garbles it, and shell redirection is the remedy
-  // (decision 8) — the same usage-error class as the key check above.
+  // — the same usage-error class as the key check above.
   if ((args.format === 'png' || args.format === 'pdf') && deps.stdoutIsTTY) {
     stderr.write(
       `refusing to write ${args.format.toUpperCase()} bytes to a terminal; redirect to a file\n`,
@@ -104,7 +104,7 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   }
 
   // resvg is an optional dependency, silent when its install is skipped, so
-  // the png path checks it loads before the fetch (decision 7). Missing
+  // the png path checks it loads before the fetch. Missing
   // module -> usage error with the remedy; anything else (wrong-ABI binary,
   // interrupted install) -> operational failure, one stripped line — a
   // native load error carries absolute paths and loader text — with the
@@ -259,14 +259,14 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
     if (args.format === 'png') {
       const { bytes, scale } = await renderPng(grid, loadResvg);
       // The area clamp pulled the raster under the 2× default; say so
-      // rather than shipping a silently smaller image (decision 13).
+      // rather than shipping a silently smaller image.
       if (scale < 2) {
         stderr.write(`scaled to ${scale.toFixed(2)}x (not the default 2x) to bound memory\n`);
       }
       output = bytes;
     } else if (args.format === 'pdf') {
       const { bytes, scale } = renderPdf(grid);
-      // The 14,400pt page limit shrank the drawing; say so (decision 13).
+      // The 14,400pt page limit shrank the drawing; say so.
       if (scale < 1) {
         stderr.write(`scaled to ${scale.toFixed(2)}x to fit the 14,400pt PDF page limit\n`);
       }
@@ -281,7 +281,7 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
               ? `${renderSvg(grid)}\n`
               : renderText(recipe, grid, deps.width);
     }
-    // The image artifact is the table only (decision 15); the confidence
+    // The image artifact is the table only; the confidence
     // note still reaches the user on stderr so a bad parse stays visible.
     if (args.format === 'svg' || args.format === 'png' || args.format === 'pdf') {
       stderr.write(`${confidenceNote(recipe).text}\n`);

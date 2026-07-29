@@ -9,10 +9,7 @@
 
 import { stripControls } from './sanitize.js';
 
-/**
- * The full planned format set; FORMATS below is the runtime whitelist and
- * grows as each format's dispatch arm lands.
- */
+/** The formats the CLI accepts; FORMATS below is the runtime whitelist. */
 export type OutputFormat = 'text' | 'json' | 'html' | 'svg' | 'png' | 'pdf';
 
 /** Exported so the skill drift test binds SKILL.md to the real format list. */
