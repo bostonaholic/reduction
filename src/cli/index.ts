@@ -1,7 +1,7 @@
 /**
  * Render a recipe page as a tabular diagram, from the command line.
  *
- *   node dist/cli.mjs <url> [--format text|json|html|svg|png] [--claude] [--help]
+ *   node dist/cli.mjs <url> [--format text|json|html|svg|png|pdf] [--claude] [--help]
  *
  * Thin shell over parseArgs and run: this file only binds the real process
  * globals; everything testable lives in args.ts and run.ts.

@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   face. Binary output must be redirected to a file — a terminal refuses it —
   and very large diagrams are scaled down (with a notice on stderr) to bound
   memory.
+- `--format pdf` in the CLI: the diagram as a one-page PDF with selectable,
+  searchable text, written without any PDF library. Diagrams past the
+  14,400pt page limit are scaled to fit, with a notice on stderr.
 - A `reduction` CLI: render any recipe URL as a tabular diagram from the
   terminal, in box-drawing text (default), JSON, or HTML. Install it with
   `npm link`; pass `--claude` to opt in to Claude escalation for

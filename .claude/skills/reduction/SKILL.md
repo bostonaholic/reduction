@@ -23,7 +23,7 @@ so npx would fall through to the public registry.
 ## Invoke
 
 ```sh
-node dist/cli.mjs '<url>' [--format text|json|html|svg|png]
+node dist/cli.mjs '<url>' [--format text|json|html|svg|png|pdf]
 ```
 
 (`reduction '<url>'` also works if the user has run `npm link`.)
@@ -42,11 +42,13 @@ outright any URL that contains a single quote (`'`) — do not try to escape it.
 - `--format svg` — the extension's diagram as a standalone SVG image;
   redirect it to a file (`> out.svg`). The confidence note arrives on
   stderr, never inside the artifact.
-- `--format png` — the same diagram rasterized at 2×. png (and pdf) output
+- `--format png` — the same diagram rasterized at 2×. png and pdf output
   is binary: always redirect it to a file (`> out.png`), never show it
   raw; the CLI refuses to write it to a terminal (exit 2). If the
   optional `@resvg/resvg-js` dependency is missing it exits 2 with the
   reinstall remedy — relay that to the user.
+- `--format pdf` — the same diagram as a one-page PDF with selectable
+  text. Binary like png: always redirect it to a file (`> out.pdf`).
 
 ## The Claude tier
 

@@ -63,7 +63,8 @@ note goes to stderr, never into the artifact); `--format png` prints that
 diagram rasterized at 2× — binary output, so redirect it to a file
 (`> out.png`); a terminal refuses it. PNG needs the optional
 `@resvg/resvg-js` dependency, so installs with `--omit=optional` lose
-only that format.
+only that format. `--format pdf` prints the diagram as a one-page PDF
+with selectable text — binary like PNG, so redirect it to a file.
 
 `--claude` opts in to the Claude tier when the local parse is
 low-confidence. It reads `ANTHROPIC_API_KEY` and spends your API budget,

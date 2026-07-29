@@ -15,6 +15,7 @@ import { flatTree, inferTree } from '../core/infer.js';
 import { layout } from '../core/layout.js';
 import { treeFromPlan } from '../core/plan.js';
 import { confidenceNote, renderTable } from '../core/render.js';
+import { renderPdf } from '../core/render-pdf.js';
 import { renderSvg } from '../core/render-svg.js';
 import { renderText } from '../core/render-text.js';
 import { callClaude, resolveEffort, resolveModel } from '../llm/claude.js';
@@ -263,6 +264,13 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
         stderr.write(`scaled to ${scale.toFixed(2)}x (not the default 2x) to bound memory\n`);
       }
       output = bytes;
+    } else if (args.format === 'pdf') {
+      const { bytes, scale } = renderPdf(grid);
+      // The 14,400pt page limit shrank the drawing; say so (decision 13).
+      if (scale < 1) {
+        stderr.write(`scaled to ${scale.toFixed(2)}x to fit the 14,400pt PDF page limit\n`);
+      }
+      output = bytes;
     } else {
       output =
         args.format === 'json'
@@ -275,7 +283,7 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
     }
     // The image artifact is the table only (decision 15); the confidence
     // note still reaches the user on stderr so a bad parse stays visible.
-    if (args.format === 'svg' || args.format === 'png') {
+    if (args.format === 'svg' || args.format === 'png' || args.format === 'pdf') {
       stderr.write(`${confidenceNote(recipe).text}\n`);
     }
   } catch (err) {
