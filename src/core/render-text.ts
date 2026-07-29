@@ -191,10 +191,7 @@ export function renderText(recipe: Recipe, grid: Grid, width: number): string {
     }
   }
 
-  const table = text
-    .slice(0, canvasHeight + 1)
-    .map((row) => row.slice(0, canvasWidth + 1).join(''))
-    .join('\n');
+  const table = text.map((row) => row.join('')).join('\n');
   const caption = recipe.title ? `${recipe.title}\n` : '';
   return `${caption}${table}\n${note}\n`;
 }
