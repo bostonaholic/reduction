@@ -38,7 +38,7 @@ function pitaWraps(): RawRecipe {
       'Warm the pita bread in a dry skillet or microwave for 20-30 seconds until soft and pliable.',
       'Assemble wraps by spreading a spoonful of yogurt sauce on each pita, adding ground beef, cucumber, tomato, and red onion. Garnish with parsley and serve with lemon wedges.',
     ],
-    strategy: 'jsonld',
+    strategy: 'json-ld',
   };
 }
 
@@ -80,7 +80,12 @@ describe('inferTree — parallel branches that meet at assembly', () => {
     expect(opsOver(recipe, 'pita bread')).toContain('microwave 20 to 30 sec');
   });
 
+  it('does not microwave the beef along with the pita', () => {
+    expect(opsOver(recipe, 'ground beef')).not.toContain('microwave 20 to 30 sec');
+  });
+
   it('keeps the step that browns the beef as an operation, not a banner row', () => {
     expect(recipe.banners).toEqual([]);
   });
 });
+

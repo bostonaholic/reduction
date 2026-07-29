@@ -23,13 +23,23 @@ import { parseIngredient, headNoun, searchPhrases, singularize } from './ingredi
 import { toCelsius } from './units.js';
 import type { Ingredient, RawRecipe, Recipe, RecipeNode } from './types.js';
 
+/** Somewhere a new instruction can start: the text, a sentence, or a clause. */
+const IMPERATIVE = String.raw`(?:^|[.;:,]\s*|\b(?:and|then)\s+)(?:lightly\s+|generously\s+|well\s+|thoroughly\s+)?`;
+
 /** Steps that only ready the kitchen. Checked before ingredient matching, so
- *  "butter and flour an 8x8-in pan" does not eat the butter and the flour. */
+ *  "butter and flour an 8x8-in pan" does not eat the butter and the flour.
+ *
+ *  Greasing words double as ingredients, so they only count as prep when they
+ *  sit where a command starts. Otherwise "Heat olive oil in a skillet" reads as
+ *  "oil the skillet" and the step that browns the beef becomes a banner row. */
 const PREP_PATTERNS = [
   /\bpreheat\b/i,
   /\bpre-heat\b/i,
   /\bposition\b.{0,20}\brack\b/i,
-  /\b(grease|butter|flour|spray|oil|line)\b.{0,40}\b(pan|tin|sheet|dish|tray|mould|mold|skillet|ramekin|pot)\b/i,
+  new RegExp(
+    `${IMPERATIVE}(grease|butter|flour|spray|oil|line)\\b.{0,40}\\b(pan|tin|sheet|dish|tray|mould|mold|skillet|ramekin|pot)\\b`,
+    'i',
+  ),
   /\bline\b.{0,30}\b(parchment|baking paper|foil)\b/i,
   /\b(prepare|set up|ready)\b.{0,20}\b(pan|tin|sheet|dish|grill|oven|steamer|station)\b/i,
   /\bbring\b.{0,20}\bto room temperature\b/i,
@@ -40,8 +50,22 @@ const ANAPHORA =
   /\b(the |your |this )?(mixture|batter|dough|sauce|filling|frosting|glaze|marinade|paste|purée|puree|dressing|custard|syrup|caramel|roux|slurry|dry ingredients|wet ingredients|flour mixture|butter mixture|egg mixture|sugar mixture|creamed mixture|chocolate mixture)\b/i;
 
 /** Verbs whose object is implicitly the work in progress. */
-const ADDITIVE =
-  /\b(add|stir in|mix in|fold in|whisk in|beat in|pour in|pour into|stir into|fold into|mix into|combine|incorporate|blend in|transfer|return|top with|sprinkle over|spread over|layer)\b/i;
+const ADDITIVE = new RegExp(
+  String.raw`\b(add|stir in|mix in|fold in|whisk in|beat in|pour in|pour into|stir into|fold into|mix into|combine|incorporate|blend in|transfer|return|top with|sprinkle over|spread over)\b` +
+    // "layer" is a noun at least as often as a verb, and "spread the strips
+    // over a sheet in a single layer" is describing the sheet, not adding to
+    // anything, so it only counts where a command starts.
+    `|${IMPERATIVE}layer\\b`,
+  'i',
+);
+
+/**
+ * Verbs that park a component until the final assembly. "Refrigerate until
+ * ready to use" means set the sauce aside, not fold it into whatever goes on
+ * the stove next — so a parked branch waits for the last step or for a step
+ * that names it again.
+ */
+const PARKED = new Set(['refrigerate', 'chill', 'freeze']);
 
 /** Verbs that end a preparation and therefore sweep up everything pending. */
 const TERMINAL = new Set([
@@ -184,6 +208,11 @@ function buildMatchers(lines: string[]): Matcher[] {
   }));
 }
 
+/** Has this branch been set aside to wait for the assembly? */
+function isParked(node: RecipeNode): boolean {
+  return node.kind === 'op' && PARKED.has(node.label.split(' ')[0]);
+}
+
 /** Every ingredient leaf under a node, for spotting revisited work. */
 function leavesOf(node: RecipeNode, out: Set<RecipeNode> = new Set()): Set<RecipeNode> {
   if (node.kind === 'ingredient') out.add(node);
@@ -272,30 +301,40 @@ export function inferTree(raw: RawRecipe, sourceUrl: string): Recipe {
 
     let consumed: RecipeNode[] = [];
     if (pending.length > 0) {
+      // A step that names an ingredient again is pointing at the operation
+      // that already holds it — take that one, not just the most recent.
+      const revisitedPending = pending.filter((node) => {
+        const leaves = leavesOf(node);
+        return revisited.some((leaf) => leaves.has(leaf));
+      });
+
+      // A branch left in the fridge waits for the assembly rather than joining
+      // whatever goes on the stove next — but only while the step has somewhere
+      // else to turn. "Chill the dough, then bake it" leaves nothing else to
+      // bake, so the chilled dough is still what the oven gets.
+      const parkedWaits = !isLast && (fresh.length > 0 || pending.some((n) => !isParked(n)));
+      const available = parkedWaits
+        ? pending.filter((node) => !isParked(node) || revisitedPending.includes(node))
+        : [...pending];
+
       const sweepsAll =
         isLast ||
-        TERMINAL.has(verb) ||
+        // A terminal verb ends whatever is in progress — but only when the step
+        // is continuing earlier work. One that brings its own ingredients and
+        // never refers back ("warm the pita bread") starts a branch of its own.
+        (TERMINAL.has(verb) && referencesPrior) ||
         // A merge step: talks about earlier work, brings nothing new, and there
         // is more than one loose end to tie together.
         (referencesPrior && fresh.length === 0 && pending.length >= 2);
 
       if (sweepsAll) {
-        consumed = pending.splice(0, pending.length);
-      } else {
-        // A step that names an ingredient again is pointing at the operation
-        // that already holds it — take that one, not just the most recent.
-        const revisitedPending = pending.filter((node) => {
-          const leaves = leavesOf(node);
-          return revisited.some((leaf) => leaves.has(leaf));
-        });
-
-        if (revisitedPending.length > 0) {
-          consumed = revisitedPending;
-          for (const node of revisitedPending) pending.splice(pending.indexOf(node), 1);
-        } else if (referencesPrior) {
-          consumed = [pending.pop()!];
-        }
+        consumed = available;
+      } else if (revisitedPending.length > 0) {
+        consumed = revisitedPending;
+      } else if (referencesPrior && available.length > 0) {
+        consumed = [available[available.length - 1]];
       }
+      for (const node of consumed) pending.splice(pending.indexOf(node), 1);
     }
 
     // Prior work first, then new ingredients — this is what keeps the melted

@@ -50,3 +50,21 @@ The rendered table shows:
 4. `searchPhrases` in `src/core/ingredient.ts` reduces
    `4 large pita bread rounds` to the phrases `pita bread rounds` /
    `bread rounds` / `rounds`, none of which match the step's `the pita bread`.
+
+5. Found while verifying against the captured site fixtures: `ADDITIVE` has the
+   same noun/verb ambiguity as (1) on `layer`, so *"Spread the strips over a
+   baking sheet in a single **layer**"* reads as adding to work in progress.
+   Combined with (3) this had Budget Bytes baking the soup along with the
+   tortilla crisps.
+
+## Verification
+
+- `tests/core/infer.test.ts` — five assertions, each mutation-checked against
+  the line of the fix it covers.
+- Full unit suite (96) and typecheck pass.
+- All 16 Playwright golden snapshots pass unchanged — no pixel moved on the
+  six reference diagrams.
+- Inferred trees for all 15 captured real-site fixtures were dumped before and
+  after. The only difference is Budget Bytes, which improves: its tortilla
+  crisps gain the `bake 10 to 15 min` operation they were missing (confidence
+  0.75 → 0.80) instead of hanging off `serve` as unoperated leaves.

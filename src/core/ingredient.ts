@@ -52,6 +52,9 @@ const DESCRIPTORS = new Set([
   'sifted', 'beaten', 'lightly', 'toasted', 'peeled', 'seeded', 'cored', 'trimmed',
   'good', 'quality', 'best', 'about', 'approximately', 'level', 'heaping', 'rounded',
   'plain', 'natural', 'raw', 'cooked', 'uncooked', 'skimmed', 'reduced', 'sodium',
+  // Shapes a thing is sold in, never what a step calls it: an instruction says
+  // "warm the pita bread", not "warm the pita bread rounds".
+  'round', 'rounds',
 ]);
 
 /** Descriptors we keep because they distinguish one ingredient from another. */
