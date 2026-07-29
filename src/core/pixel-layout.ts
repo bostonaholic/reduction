@@ -31,9 +31,10 @@ const BORDER = 2;
 const INGREDIENT_FLOOR = 240;
 const OP_FLOOR = 82;
 /**
- * Tables shrink toward the overlay panel's widest rendering (decision 11).
- * In this slice the target only caps banner-driven column growth; anything
- * past it the shrink pass would only take back.
+ * Tables shrink toward the overlay panel's widest rendering (decision 11):
+ * an artifact cannot scroll the way the overlay does, so width past the
+ * target is taken back — but never below a column's floor, so a 13+ column
+ * table stays over target at legible floor widths.
  */
 const TARGET_WIDTH = 1180;
 /** Never wrap to a sliver narrower than this (image.ts:88 precedent). */
@@ -144,7 +145,70 @@ function columnWidths(grid: Grid): number[] {
       c = c + 1 < cell.col + cell.colSpan ? c + 1 : cell.col;
     }
   }
+  shrinkToTarget(widths);
   return widths;
+}
+
+/**
+ * Shrink `widths` in place toward TARGET_WIDTH, never below a column's
+ * floor (decisions 10-11).
+ *
+ * The specification is per-pixel: shrink the widest column still above its
+ * own floor by 1px; stop when the table meets the target or no column is
+ * above its floor. This computes the same fixpoint arithmetically: find the
+ * one integer level L where clamping every column to
+ * max(floor, min(natural, L)) brings the total to the largest value <= the
+ * target, then hand the undershoot back one pixel each to the widest
+ * shrunk columns, lowest index first (the render-text.ts:88
+ * indexOf(Math.max(...)) order), so the total equals the target exactly.
+ * Leveling undershoots by less than one pixel per active column (<= ~11px):
+ * undershooting the target requires the target to be reachable, which
+ * needs <= 12 columns. When the floor sum 246 + 84×(cols−1) exceeds the
+ * target (13+ columns), the floors win and the table stays over target.
+ */
+function shrinkToTarget(widths: number[]): void {
+  const cols = widths.length;
+  if (cols === 0) return;
+  // The non-content pixels: the frame plus one interior border per boundary.
+  const chrome = 2 * FRAME + BORDER * (cols - 1);
+  const totalAt = (level: number): number =>
+    widths.reduce((sum, w, c) => sum + Math.max(columnFloor(c), Math.min(w, level)), chrome);
+
+  if (widths.reduce((sum, w) => sum + w, chrome) <= TARGET_WIDTH) return;
+  if (totalAt(0) >= TARGET_WIDTH) {
+    // The floors win: no level meets the target, so everything shrinks to
+    // its floor and the table stays over (or exactly at) the target.
+    for (let c = 0; c < cols; c++) widths[c] = columnFloor(c);
+    return;
+  }
+
+  // Binary search the largest integer level whose total is <= the target;
+  // totalAt is non-decreasing in the level, so the invariant
+  // totalAt(lo) <= TARGET_WIDTH < totalAt(hi + 1) pins the fixpoint.
+  let lo = 0;
+  let hi = Math.max(...widths);
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (totalAt(mid) <= TARGET_WIDTH) lo = mid;
+    else hi = mid - 1;
+  }
+  const level = lo;
+
+  const shrunk = widths.map((w, c) => Math.max(columnFloor(c), Math.min(w, level)));
+  let leftover = TARGET_WIDTH - shrunk.reduce((sum, w) => sum + w, chrome);
+  // Hand the undershoot back, widest first, lowest index first, one pixel
+  // each — only to columns the level actually shrank, so no column ever
+  // exceeds its natural width.
+  const candidates = shrunk
+    .map((w, c) => ({ w, c }))
+    .filter(({ w, c }) => w < widths[c])
+    .sort((a, b) => b.w - a.w || a.c - b.c);
+  for (const candidate of candidates) {
+    if (leftover === 0) break;
+    shrunk[candidate.c]++;
+    leftover--;
+  }
+  for (let c = 0; c < cols; c++) widths[c] = shrunk[c];
 }
 
 export function layoutPixels(grid: Grid): PixelLayout {

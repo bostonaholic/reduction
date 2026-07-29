@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "low" confidence, naming the finding — coverage alone no longer decides the
   badge. Those failures now also escalate to Claude even above 60% confidence,
   and the more truthful candidate can win the selection at lower coverage. (#12)
+- Wide CLI diagrams shrink toward the overlay's 1180px width instead of
+  stretching to their banner text, so a long-banner recipe reads like the
+  overlay at its widest. Columns never shrink below their minimum widths, so
+  a many-column recipe stays legible and simply goes over the target.
 
 ### Added
 
