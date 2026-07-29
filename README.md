@@ -253,3 +253,6 @@ Known rough edges:
   a limit to how much that can compress.
 - Volume-to-weight conversion uses a density table covering common baking
   ingredients. Anything not in it prints millilitres rather than guessing grams.
+- Ingredient and step lists are capped at 500 items each — an order of
+  magnitude beyond any real recipe, a bound against hostile pages. A capped
+  diagram says so in a banner row ("showing the first 500 of N ingredients").
