@@ -42,6 +42,16 @@ describe('printableDocument meta line', () => {
     );
   });
 
+  it('drops credential-shaped query parameters but keeps identity ones', () => {
+    const meta = metaLine(
+      build(recipe({ sourceUrl: 'https://example.test/r?p=123&access_token=abc&recipeId=9' })),
+    );
+    const escaped = 'https://example.test/r?p=123&amp;recipeId=9';
+    expect(meta).toBe(
+      `<a href="${escaped}" rel="noreferrer noopener">${escaped}</a> · 12 brownies`,
+    );
+  });
+
   it('strips the #fragment but keeps the query, in both the href and the text', () => {
     const meta = metaLine(
       build(recipe({ sourceUrl: 'https://example.test/r?p=1#access_token=abc' })),
