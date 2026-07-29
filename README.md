@@ -72,7 +72,11 @@ so it is never automatic. `--help` prints usage.
 
 For anyone scripting against the CLI, the exit code is part of the
 contract: `0` success, `1` operational failure (reason on stderr), `2`
-usage error.
+usage error. A successful run can still write to stderr: svg, png, and
+pdf put the confidence note there to keep the artifact clean, and a very
+large diagram scaled down — to bound PNG memory or to fit the 14,400pt
+PDF page limit — adds a `scaled to <n>×` notice. Those lines are
+advisories accompanying exit 0, not failures.
 
 Two limitations to know about. Sites that block scripted requests return
 403s to the CLI's plain `fetch` where the extension rides a real browser
@@ -118,7 +122,7 @@ Row order comes from a depth-first traversal of the leaves, which is what
 guarantees every operation's inputs land in a *contiguous* block of rows — the
 only thing a `rowspan` can cover.
 
-The pipeline is five pure functions plus a scraper:
+The pipeline is a scraper feeding a chain of pure functions:
 
 | Stage | Module | Contract |
 | --- | --- | --- |
@@ -128,6 +132,9 @@ The pipeline is five pure functions plus a scraper:
 | layout | `src/core/layout.ts` | tree → positioned cells with spans |
 | render | `src/core/render.ts` | cells → HTML (the extension and `--format html`) |
 | render text | `src/core/render-text.ts` | grid → box-drawing text (the CLI's default output) |
+| pixel layout | `src/core/pixel-layout.ts`, `font-metrics.ts` | grid → pixel geometry — the one measurement every visual renderer reads |
+| render svg | `src/core/render-svg.ts` | grid → standalone SVG (`--format svg`; `--format png` rasterizes it via `@resvg/resvg-js` in `src/cli/render-png.ts`) |
+| render pdf | `src/core/render-pdf.ts` | grid → one-page PDF with selectable text (`--format pdf`) |
 
 None of them touch `chrome.*`, so the entire product logic is unit-testable in
 Node. The extension shell is a thin adapter over the top.
@@ -157,6 +164,14 @@ This is the hard part, and it runs as a three-tier ladder:
 
 The overlay labels its own confidence, so a bad parse is visible rather than
 quietly wrong.
+
+## Bundled third-party assets
+
+The repo ships Liberation Sans (`assets/fonts/LiberationSans-Regular.ttf`)
+so PNG rasterization draws real text on every platform; it is licensed
+under the SIL Open Font License 1.1, included alongside it as
+`assets/fonts/OFL.txt`. The optional `@resvg/resvg-js` rasterizer is
+MPL-2.0, in an otherwise MIT project.
 
 ## Privacy and permissions
 
@@ -258,6 +273,10 @@ Known rough edges:
 - Very long recipes stay very wide. A 26-step layer cake produces a 17-column
   table; logistics verbs are folded into the operation they serve, but there is
   a limit to how much that can compress.
+- The visual CLI formats (svg, png, pdf) shrink wide tables toward a 1180px
+  target but never squeeze a column below its minimum width, so a many-column
+  recipe legitimately overshoots — 13 columns render 1254px wide. Scripts
+  should read the artifact's own dimensions rather than assume a fixed canvas.
 - Volume-to-weight conversion uses a density table covering common baking
   ingredients. Anything not in it prints millilitres rather than guessing grams.
 - Ingredient and step lists are capped at 500 items each — an order of

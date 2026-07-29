@@ -58,13 +58,23 @@ is a usage error (exit 2).
 
 ## Exit codes and failure modes
 
-- `0` — success; the rendered table is on stdout.
+- `0` — success; the rendered table is on stdout. stderr may still carry
+  advisories: svg, png, and pdf print the confidence note there, and a
+  very large diagram scaled down to fit png's memory bound or pdf's page
+  limit adds a `scaled to <n>x` notice. Advisories are not failures —
+  judge success by the exit code, and relay the lines as context, never
+  as an error.
 - `1` — operational failure, explained on stderr. Expect this on
   bot-blocked sites (plain fetch gets a 403 where a real browser would
   not), on pages with no recipe, on pages the parser cannot handle
   (`could not parse the page`), on oversized pages
-  (`too large (<n> bytes)`), and on hostile pages whose table would
-  be absurdly large (`table too large to render`); relay the stderr
+  (`too large (<n> bytes)`), on hostile pages whose table would be
+  absurdly large in text format (`table too large to render` — svg,
+  png, and pdf never refuse for size; they scale the diagram down and
+  exit 0 with the advisory above), when `@resvg/resvg-js` is installed
+  but cannot load (a wrong-platform or corrupted native binary — a
+  reinstall usually fixes it), and when the font file shipped alongside
+  the bundle is missing (`font not found at <path>`); relay the stderr
   line to the user rather than retrying blindly.
 - `2` — usage error: bad flags, bad URL, or `--claude` without a key.
 

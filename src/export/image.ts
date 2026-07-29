@@ -10,6 +10,11 @@
  *
  * No external libraries: Manifest V3 forbids remote code, and an SVG with a
  * foreignObject taints a canvas, so neither shortcut is available.
+ *
+ * The CLI's DOM-free renderers (src/core/render-svg.ts, render-pdf.ts)
+ * intentionally mirror this file's visual grammar — colors, padding, font
+ * sizing, element order. A change to the shared visuals here must be
+ * mirrored there, or the two exports drift apart silently.
  */
 
 import { isHttpUrl, sanitizeSourceUrl } from './source-url.js';
