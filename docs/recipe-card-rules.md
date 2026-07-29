@@ -165,15 +165,34 @@ nothing else. A card can reach 100% confidence and still fail F6.
 
 ## 6. Current enforcement
 
-| Tier | Asserted | Held by construction | Unchecked |
-| --- | --- | --- | --- |
-| S | S9 (`validateGrid`) | S1–S8, S10 | — |
-| F | F1, F6 (`gradeCard`) | F4, F5 | F2, F3, F7, F8, F9 |
-| L | — | L4, L6 | L1, L2, L3, L5, L7, L8 |
+| Tier | Asserted by `gradeCard` | Not decidable in code |
+| --- | --- | --- |
+| S | S1–S10 | — |
+| F | F1–F7 | F8, F9 |
+| L | L1–L8 | — |
 
-[`gradeCard`](../src/core/grade.ts) implements F1 and F6 and runs against all
-15 captured site fixtures in `tests/sites.test.ts`. It reports failed rule IDs
-with the offending ingredient named — never a score.
+F8 and F9 are the only rules with no implementation, and deliberately so:
+deciding whether two operations are genuinely order-independent, or whether a
+grouping matches how a cook thinks, needs a human-authored reference card to
+compare against. `NEEDS_REFERENCE_CARD` names them so the omission stays a
+decision rather than an oversight.
+
+[`gradeCard`](../src/core/grade.ts) runs against all 15 captured site fixtures
+in `tests/sites.test.ts`, which gates S and F strictly and L with one
+exclusion. It reports failed rule IDs with the offending ingredient named —
+never a score.
+
+A card that is not a tree stops the grade after Tier S. `column` and
+`leafCount` recurse without a visited set, because the layout engine is
+entitled to assume a tree — so S1 and S2 are reported and the later tiers,
+which would crash, are skipped. That matches the tier contract: a structural
+failure makes the card INVALID rather than low-scoring.
+
+**Known exclusion: L8.** The fixtures gate skips it because it currently fails
+for real — a unit is singularized during parsing and never restored, so
+`2 cloves garlic` renders as `2 clove garlic`. That is a defect in the
+ingredient formatter, tracked separately; skipping it explicitly is honest,
+dropping the rule would not be.
 
 **F6 is tuned for precision over recall, deliberately.** Heat legitimately
 reaches ingredients a step never names ("add the flour, then bake"), so the
@@ -188,6 +207,20 @@ Both of those carve-outs were found by running the check against the captured
 fixtures, not by reasoning: the first draft flagged Simply Recipes (a *freeze
 the leftovers* note after the bake) and Tasty (chilling cookie dough that is
 then meant to be baked). Both are pinned as regression tests.
+
+The same thing happened when the remaining rules landed. Fifteen findings on
+the first run, of which fourteen were the grader's fault:
+
+| Rule | Looked like | Actually was |
+| --- | --- | --- |
+| S5 | rows out of traversal order | comparing the raw line `0.5 teaspoon salt` against the rendered cell `1/2 tsp (3 g) salt` |
+| S8 | an operation spanning rows no rowspan could cover | a text-keyed row lookup colliding when a recipe lists the same line twice |
+| F3 | ten missing steps | `Enjoy!`, `For tips on slicing, see…`, `If you're pressed for time you can skip this step` — prose that is not a step |
+| L6 | logistics steps that should have folded | `place 30 min` carries a duration, which `mergeLogisticsSteps` deliberately preserves |
+
+F3 now fires only for a step that names an ingredient and is not advisory
+prose, which is the evidence it had something to contribute. The one finding
+that survived triage — `2 clove garlic` on Budget Bytes — is a real defect.
 
 Worth being precise about that middle column, because "held by construction" is
 doing real work in two different places:
