@@ -16,14 +16,14 @@ import { stripControls } from './sanitize.js';
 export type OutputFormat = 'text' | 'json' | 'html' | 'svg' | 'png' | 'pdf';
 
 /** Exported so the skill drift test binds SKILL.md to the real format list. */
-export const FORMATS: readonly OutputFormat[] = ['text', 'json', 'html', 'svg'];
+export const FORMATS: readonly OutputFormat[] = ['text', 'json', 'html', 'svg', 'png'];
 
 export type ParsedArgs =
   | { kind: 'run'; url: string; format: OutputFormat; claude: boolean }
   | { kind: 'help' }
   | { kind: 'error'; message: string };
 
-export const USAGE = `Usage: reduction <url> [--format text|json|html|svg] [--claude] [--help]
+export const USAGE = `Usage: reduction <url> [--format text|json|html|svg|png] [--claude] [--help]
 
 Fetch a recipe page and print it as a tabular diagram.
 
@@ -32,6 +32,12 @@ Formats:
   json   the recipe, grid, and confidence note as JSON
   html   the same markup the extension renders
   svg    the extension's diagram as a standalone SVG image
+  png    the same diagram rasterized at 2x
+
+png output is binary: redirect it to a file (> out.png) — a terminal
+refuses it with exit 2. It needs the optional @resvg/resvg-js dependency;
+if that is missing (exit 2), reinstall without --omit=optional, or run:
+npm install @resvg/resvg-js
 
 Options:
   --claude   when the local parse is low-confidence, ask Claude to improve it

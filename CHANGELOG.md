@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--format svg` in the CLI: the same diagram the extension exports, as a
   standalone SVG image, rendered without a browser. The confidence note goes
   to stderr so the artifact stays clean.
+- `--format png` in the CLI: the extension's 2× PNG export, rasterized with
+  the optional `@resvg/resvg-js` dependency and the bundled Liberation Sans
+  face. Binary output must be redirected to a file — a terminal refuses it —
+  and very large diagrams are scaled down (with a notice on stderr) to bound
+  memory.
 - A `reduction` CLI: render any recipe URL as a tabular diagram from the
   terminal, in box-drawing text (default), JSON, or HTML. Install it with
   `npm link`; pass `--claude` to opt in to Claude escalation for
