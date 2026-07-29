@@ -23,7 +23,9 @@ const BAND_FONT = 12;
 const BAND_COLOR = '#6b7268';
 // Cap on the characters fed to truncateToWidth, which measures O(n) prefixes:
 // a page-controlled URL of unbounded length (history.pushState) could
-// otherwise hang the export click. Far more than any band can display.
+// otherwise hang the export click. A band wide enough to fit this many
+// characters would show a cut that looks complete, so the cut carries its
+// own ellipsis (clampBandText below).
 const BAND_TEXT_MAX = 300;
 
 interface Line {
@@ -95,6 +97,11 @@ export function truncateToWidth(
     if (width(candidate) <= maxWidth) return candidate;
   }
   return '…';
+}
+
+/** Bound the band text before it is measured; a real cut is never silent. */
+function clampBandText(url: string): string {
+  return url.length > BAND_TEXT_MAX ? `${url.slice(0, BAND_TEXT_MAX)}…` : url;
 }
 
 function readGeometry(table: HTMLTableElement): Geometry {
@@ -186,7 +193,7 @@ export function toSvg(table: HTMLTableElement, sourceUrl: string): string {
 
   if (bandHeight > 0) {
     const truncated = truncateToWidth(
-      url.slice(0, BAND_TEXT_MAX),
+      clampBandText(url),
       Math.max(geo.width - PAD * 2, 20),
       measurer(`${BAND_FONT}px ${style.fontFamily}`),
     );
@@ -253,7 +260,7 @@ export async function toPng(
     ctx.font = bandFont;
     ctx.textAlign = 'center';
     ctx.fillText(
-      truncateToWidth(url.slice(0, BAND_TEXT_MAX), Math.max(geo.width - PAD * 2, 20), measurer(bandFont)),
+      truncateToWidth(clampBandText(url), Math.max(geo.width - PAD * 2, 20), measurer(bandFont)),
       geo.width / 2,
       geo.height + PAD + BAND_FONT * 0.82,
     );
