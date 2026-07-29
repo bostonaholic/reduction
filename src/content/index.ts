@@ -7,6 +7,8 @@
  */
 
 import { NoRecipeFound, extractRecipe } from '../core/extract.js';
+import { pickBetter, shouldEscalate, type Graded } from '../core/escalate.js';
+import { gradeByTier, type Finding } from '../core/grade.js';
 import { flatTree, inferTree } from '../core/infer.js';
 import { layout } from '../core/layout.js';
 import { treeFromPlan, type Plan } from '../core/plan.js';
@@ -14,13 +16,10 @@ import { confidenceNote, renderTable } from '../core/render.js';
 import { toPng, toSvg } from '../export/image.js';
 import { printableDocument } from '../export/print.js';
 import type { ClaudeReply, Message } from '../messages.js';
-import type { Grid, Recipe } from '../core/types.js';
+import type { Grid, RawRecipe, Recipe } from '../core/types.js';
 import styles from './overlay.css';
 
 const HOST_ID = 'reduction-overlay-host';
-
-/** Below this, the local heuristics are not trustworthy enough to show alone. */
-const CLAUDE_THRESHOLD = 0.6;
 
 function removeExisting(): boolean {
   const existing = document.getElementById(HOST_ID);
@@ -96,8 +95,8 @@ function wireClose(shadow: ShadowRoot): void {
   );
 }
 
-function showTable(shadow: ShadowRoot, recipe: Recipe, grid: Grid): void {
-  const note = confidenceNote(recipe);
+function showTable(shadow: ShadowRoot, recipe: Recipe, grid: Grid, findings: Finding[]): void {
+  const note = confidenceNote(recipe, findings);
   const servings = recipe.yield ? `<span class="rd-meta">${escape(recipe.yield)}</span>` : '';
 
   shadow.appendChild(
@@ -168,6 +167,15 @@ function downloadBlob(filename: string, blob: Blob): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/** Grade a card for the badge. A grading crash degrades to "no findings". */
+function tryGrade(recipe: Recipe, raw: RawRecipe): Graded | null {
+  try {
+    return gradeByTier(recipe, raw);
+  } catch {
+    return null;
+  }
+}
+
 /** Ask the service worker to try Claude. Never throws — the caller has a plan B. */
 async function askClaude(
   title: string,
@@ -203,22 +211,30 @@ async function run(): Promise<void> {
   }
 
   let recipe = inferTree(raw, location.href);
+  // The badge must always describe the card on screen, so recipe and graded
+  // are reassigned together at every point recipe changes hands.
+  let graded = tryGrade(recipe, raw);
 
-  if (recipe.confidence < CLAUDE_THRESHOLD) {
+  if (shouldEscalate(recipe.confidence, graded)) {
     const plan = await askClaude(raw.title, raw.ingredientLines, raw.stepTexts);
     if (plan) {
       const viaClaude = treeFromPlan(plan, raw, location.href);
-      if (viaClaude.root && viaClaude.confidence >= recipe.confidence) recipe = viaClaude;
+      ({ recipe, graded } = pickBetter(recipe, graded, viaClaude, tryGrade(viaClaude, raw)));
     }
   }
 
-  if (!recipe.root) recipe = flatTree(raw, location.href);
+  if (!recipe.root) {
+    // The flat table never claims to understand the recipe, so grading it
+    // against the source would only restate that.
+    recipe = flatTree(raw, location.href);
+    graded = null;
+  }
   if (!recipe.root) {
     showError(shadow, 'Found a recipe but no ingredients to lay out.');
     return;
   }
 
-  showTable(shadow, recipe, layout(recipe));
+  showTable(shadow, recipe, layout(recipe), graded ? [...graded.S, ...graded.F] : []);
 }
 
 void run();

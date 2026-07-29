@@ -182,6 +182,12 @@ in `tests/sites.test.ts`, which gates S and F strictly and L with one
 exclusion. It reports failed rule IDs with the offending ingredient named —
 never a score.
 
+The grader also runs in the extension at overlay time: `gradeByTier` grades
+each candidate card, and the findings gate escalation to Claude
+(`shouldEscalate`), select between the local and Claude candidates
+(`pickBetter` in [`escalate.ts`](../src/core/escalate.ts)), and feed the
+confidence badge, which names the first S or F finding on the shown card.
+
 A card that is not a tree stops the grade after Tier S. `column` and
 `leafCount` recurse without a visited set, because the layout engine is
 entitled to assume a tree — so S1 and S2 are reported and the later tiers,

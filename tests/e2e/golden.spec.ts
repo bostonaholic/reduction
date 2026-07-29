@@ -47,6 +47,7 @@ const FIXTURES: Fixture[] = [
   { name: 'orphans', covers: 'garnishes no step mentions, attached to the final operation' },
   { name: 'microdata', covers: 'the microdata extraction path' },
   { name: 'heuristic', covers: 'the headings-and-lists extraction path, no structured data' },
+  { name: 'parked', covers: 'a parked-then-heated ingredient (F6), the badge naming the finding' },
 ];
 
 /** Load the fixture, run the real content-script bundle, wait for the table. */
@@ -81,6 +82,7 @@ test.describe('golden master', () => {
 
       const table = page.locator('#reduction-overlay-host .rd-table');
       await expect(table).toBeVisible();
+      await expect(page.locator('#reduction-overlay-host .rd-badge')).toBeVisible();
       await expect(table).toHaveScreenshot(`${fixture.name}-table.png`);
     });
 
@@ -145,6 +147,21 @@ test('brownies SVG export links back to the source page', async ({ page }) => {
 });
 
 /**
+ * The self-check reaches the user: the parked fixture trips F6 (a sauce
+ * refrigerated in step 1, heated later as an unnamed passenger), so the badge
+ * must read low and the note must name the finding — even though coverage
+ * alone would have called this card high confidence.
+ */
+test('parked wears a low badge naming the F6 finding', async ({ page }) => {
+  const bundle = await readFile(BUNDLE, 'utf8');
+  await render(page, bundle, 'parked');
+
+  const host = page.locator('#reduction-overlay-host');
+  await expect(host.locator('.rd-badge')).toHaveText('low confidence');
+  await expect(host.locator('.rd-note')).toContainText('put away in step 1');
+});
+
+/**
  * Structural assertions alongside the pixels. When a golden fails, these say
  * whether the diagram is genuinely wrong or merely moved.
  */
@@ -159,6 +176,8 @@ test('golden fixtures produce the expected table structure', async ({ page }) =>
     microdata: { rows: 5, cols: 4, banners: 1 },
     // toss(slice(cucumbers), whisk(vinegar, sugar, oil, salt)) — depth 2.
     heuristic: { rows: 5, cols: 3, banners: 0 },
+    // assemble(cook(whisk(yogurt, garlic), chicken, oil), rice) — depth 3.
+    parked: { rows: 5, cols: 4, banners: 0 },
   };
 
   const actual: Record<string, { rows: number; cols: number; banners: number }> = {};
