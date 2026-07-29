@@ -24,13 +24,27 @@ thing readable as a timeline.
 
 ## Install it
 
+### From a release
+
+Download `reduction-<version>.zip` from the [latest
+release](https://github.com/bostonaholic/reduction/releases/latest) and unzip it.
+The folder you get is the extension — no build step, no Node.
+
+Then in Chrome: **chrome://extensions** → enable **Developer mode** → **Load
+unpacked** → select the unzipped folder (the one holding `manifest.json`).
+
+Chrome loads it from wherever you unzipped it, so keep the folder around;
+deleting it uninstalls the extension. To upgrade, download the new zip, unzip
+over the old folder, and hit **Reload** on the extension card.
+
+### From source
+
 ```sh
 npm install
 npm run build
 ```
 
-Then in Chrome: **chrome://extensions** → enable **Developer mode** → **Load
-unpacked** → select `dist/`.
+Same **Load unpacked** steps, but select `dist/`.
 
 Click the toolbar button on any recipe page (or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>).
 Click it again, or press <kbd>Esc</kbd>, to dismiss.
