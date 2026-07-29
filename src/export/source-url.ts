@@ -28,16 +28,17 @@ function stripFragment(value: string): string {
 
 /**
  * Drop query parameters with credential-shaped names, matched exactly and
- * case-insensitively. The rest of the query survives byte-for-byte: on many
- * sites it carries the recipe's identity (?p=, ?recipeId=), so it cannot be
- * dropped wholesale without breaking the link.
+ * case-insensitively. The rest of the query survives: on many sites it
+ * carries the recipe's identity (?p=, ?recipeId=), so it cannot be dropped
+ * wholesale without breaking the link. Legacy ';' separators are split on
+ * too — a token must not hide behind one — and rejoin as '&'.
  */
 function scrubQuery(value: string): string {
   const q = value.indexOf('?');
   if (q === -1) return value;
   const kept = value
     .slice(q + 1)
-    .split('&')
+    .split(/[&;]/)
     .filter((pair) => !CREDENTIAL_PARAMS.has(pair.split('=', 1)[0].toLowerCase()));
   return kept.length ? `${value.slice(0, q)}?${kept.join('&')}` : value.slice(0, q);
 }

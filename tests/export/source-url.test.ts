@@ -39,6 +39,18 @@ describe('sanitizeSourceUrl', () => {
       'https://example.test/r?keyword=pie&sessions=3',
     );
   });
+
+  it('scrubs a credential behind a legacy ; separator', () => {
+    expect(sanitizeSourceUrl('https://example.test/r?p=1;token=SECRET')).toBe(
+      'https://example.test/r?p=1',
+    );
+  });
+
+  it('keeps an identity parameter behind a legacy ; separator', () => {
+    expect(sanitizeSourceUrl('https://example.test/r?token=SECRET;p=1')).toBe(
+      'https://example.test/r?p=1',
+    );
+  });
 });
 
 describe('isHttpUrl', () => {
