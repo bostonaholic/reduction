@@ -334,6 +334,24 @@ describe('run hostile page bounds', () => {
     expect(stderr.text).toBe('');
     expect(JSON.parse(stdout.text).recipe.title).toBe('Chain Bomb');
   });
+
+  // jsdom chews on the nesting for a while before overflowing; allow it.
+  it('reports a page too deeply nested for jsdom as unparseable, without a stack trace', { timeout: 30_000 }, async () => {
+    // jsdom recurses per ancestor while building the tree, so ~16,000 nested
+    // divs (well under the byte cap) overflow the stack inside the JSDOM
+    // constructor itself. That must surface as the one-line operational
+    // failure, not an uncaught RangeError dumping paths to stderr.
+    const n = 16_000;
+    const page = `<!doctype html><html><body>${'<div>'.repeat(n)}x${'</div>'.repeat(n)}</body></html>`;
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(page));
+    const { deps, stdout, stderr } = makeDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+
+    expect(exit).toBe(1);
+    expect(stderr.text).toBe('could not parse the page\n');
+    expect(stdout.text).toBe('');
+  });
 });
 
 describe('run timeout', () => {

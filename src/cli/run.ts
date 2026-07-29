@@ -133,7 +133,17 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
     return 1;
   }
 
-  const doc = new JSDOM(html).window.document;
+  // jsdom's tree construction recurses per ancestor, so a hostile page of
+  // deeply nested elements — far under the byte cap — overflows the stack
+  // here. An uncaught throw would dump a stack trace carrying local paths;
+  // catch it and surface the same one-line operational failure as the rest.
+  let doc: Document;
+  try {
+    doc = new JSDOM(html).window.document;
+  } catch {
+    stderr.write('could not parse the page\n');
+    return 1;
+  }
   let raw;
   try {
     raw = extractRecipe(doc);
