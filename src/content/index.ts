@@ -7,6 +7,7 @@
  */
 
 import { NoRecipeFound, extractRecipe } from '../core/extract.js';
+import { CLAUDE_THRESHOLD } from '../core/escalate.js';
 import { gradeByTier, type Finding, type Tier } from '../core/grade.js';
 import { flatTree, inferTree } from '../core/infer.js';
 import { layout } from '../core/layout.js';
@@ -19,9 +20,6 @@ import type { Grid, RawRecipe, Recipe } from '../core/types.js';
 import styles from './overlay.css';
 
 const HOST_ID = 'reduction-overlay-host';
-
-/** Below this, the local heuristics are not trustworthy enough to show alone. */
-const CLAUDE_THRESHOLD = 0.6;
 
 function removeExisting(): boolean {
   const existing = document.getElementById(HOST_ID);

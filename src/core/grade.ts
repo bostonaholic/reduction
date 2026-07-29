@@ -39,6 +39,9 @@ export interface Finding {
 /** Rules that need a human-authored reference card, so no code can decide them. */
 export const NEEDS_REFERENCE_CARD = ['F8', 'F9'] as const;
 
+/** Rules whose failure makes a card unusable rather than merely low-scoring. */
+export const UNUSABLE_RULES: readonly RuleId[] = ['S1', 'S2'];
+
 export function tierOf(rule: RuleId): Tier {
   return rule[0] as Tier;
 }
@@ -607,7 +610,7 @@ export function gradeCard(recipe: Recipe, raw: RawRecipe, options: GradeOptions 
   // A missing root or a graph that is not a tree makes the later tiers
   // meaningless — and unrunnable, since they walk the tree assuming one. The
   // rules call this INVALID rather than low-scoring, so report it and stop.
-  const unusable = structural.some((f) => f.rule === 'S1' || f.rule === 'S2');
+  const unusable = structural.some((f) => UNUSABLE_RULES.includes(f.rule));
   const rest = unusable
     ? []
     : [...checkFaithfulness(recipe, raw), ...checkLegibility(recipe, raw, limits)];
