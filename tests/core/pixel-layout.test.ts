@@ -222,12 +222,88 @@ describe('layoutPixels shrink toward the 1180px target (slice 2)', () => {
   });
 });
 
-// structure.md lists spanning-cell growth under slice 1, but growth requires
-// a wrapped cell, and slice 1 never narrows a column below its natural width
-// — nothing wraps until the slice-2 shrink exists. Flagged to the
-// orchestrator as a structure defect; the test itself is unchanged in
-// intent, exercised through a post-shrink narrow column.
-describe('layoutPixels spanning-cell growth (slice 2)', () => {
+describe('layoutPixels shrink matches the per-pixel specification', () => {
+  /**
+   * The specification stated literally: shrink the widest column still above
+   * its own floor by 1px, ties broken lowest index first; stop at the target
+   * or when every column is pinned. The production shrink computes the same
+   * result arithmetically; this reference is the ground truth it must match.
+   */
+  function perPixelShrink(naturals: number[]): number[] {
+    const widths = [...naturals];
+    const chrome = 6 + 2 * (widths.length - 1);
+    let total = widths.reduce((sum, w) => sum + w, chrome);
+    while (total > 1180) {
+      let pick = -1;
+      for (let c = 0; c < widths.length; c++) {
+        const floor = c === 0 ? 240 : 82;
+        if (widths[c] > floor && (pick === -1 || widths[c] > widths[pick])) pick = c;
+      }
+      if (pick === -1) break;
+      widths[pick]--;
+      total--;
+    }
+    return widths;
+  }
+
+  /** Column content widths recovered from a one-row layout's box geometry. */
+  function columnWidthsOf(p: Layout): number[] {
+    const boxes = [...p.boxes].sort((a, b) => a.x - b.x);
+    return boxes.map((box, c) => {
+      // Each box absorbs the 3px frame at the table edge and half of each
+      // 2px interior border, so content width is box.w minus those shares.
+      const left = c === 0 ? 3 : 1;
+      const right = c === boxes.length - 1 ? 3 : 1;
+      return box.w - left - right;
+    });
+  }
+
+  /** The natural column widths layoutPixels derives for a one-row grid. */
+  function naturalsOf(texts: string[]): number[] {
+    return texts.map((text, c) => {
+      const floor = c === 0 ? 240 : 82;
+      return Math.max(floor, Math.ceil(textWidth(text, 15)) + 20);
+    });
+  }
+
+  it('keeps floor-pinned columns at their floor and hands leftovers back highest index first', () => {
+    // naturals [268, 448, 448, 448, 448]: the level lands at 231
+    // (240 + 4×231 + 14 chrome = 1178), leaving 2px of undershoot. The
+    // ingredient column's 240 floor sits above the level, so it is pinned —
+    // it may not take a leftover pixel and end at 241 — and the two extras
+    // belong to the highest-indexed op columns, the ones the lowest-index-
+    // first per-pixel loop never reached.
+    const texts = ['x'.repeat(33), ...Array.from({ length: 4 }, () => 'x'.repeat(57))];
+    expect(naturalsOf(texts)).toEqual([268, 448, 448, 448, 448]);
+
+    const p = layoutPixels(rowGrid(texts));
+    expect(p.width).toBe(1180);
+    expect(columnWidthsOf(p)).toEqual([240, 231, 231, 232, 232]);
+  });
+
+  it('agrees with the literal per-pixel rule on randomized grids', () => {
+    // A tiny deterministic LCG (Lehmer, modulus 2^31−1) so a failure
+    // reproduces; characters of four different advances vary the naturals.
+    let seed = 0x2f6e2b1;
+    const rand = (n: number): number => {
+      seed = (seed * 48271) % 2147483647;
+      return seed % n;
+    };
+    const chars = ['i', 'x', 'M', 'W'];
+
+    for (let trial = 0; trial < 250; trial++) {
+      const cols = 1 + rand(14);
+      const texts = Array.from({ length: cols }, () => chars[rand(4)].repeat(1 + rand(80)));
+      const p = layoutPixels(rowGrid(texts));
+      const naturals = naturalsOf(texts);
+      expect(columnWidthsOf(p), `trial ${trial}: naturals [${naturals.join(', ')}]`).toEqual(
+        perPixelShrink(naturals),
+      );
+    }
+  });
+});
+
+describe('layoutPixels spanning-cell growth', () => {
   it('grows only the last spanned row when a wrapped op outgrows its rows', () => {
     // A rowSpan-2 op whose label wraps to many lines after the shrink: rows
     // aa and bb are spanned, row cc is the unspanned control. Only bb — the

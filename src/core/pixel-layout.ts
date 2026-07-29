@@ -151,20 +151,27 @@ function columnWidths(grid: Grid): number[] {
 
 /**
  * Shrink `widths` in place toward TARGET_WIDTH, never below a column's
- * floor (decisions 10-11).
+ * floor.
  *
  * The specification is per-pixel: shrink the widest column still above its
- * own floor by 1px; stop when the table meets the target or no column is
- * above its floor. This computes the same fixpoint arithmetically: find the
- * one integer level L where clamping every column to
+ * own floor by 1px, ties broken lowest index first (the render-text.ts:88
+ * indexOf(Math.max(...)) order); stop when the table meets the target or no
+ * column is above its floor. This computes the same fixpoint arithmetically:
+ * find the one integer level L where clamping every column to
  * max(floor, min(natural, L)) brings the total to the largest value <= the
- * target, then hand the undershoot back one pixel each to the widest
- * shrunk columns, lowest index first (the render-text.ts:88
- * indexOf(Math.max(...)) order), so the total equals the target exactly.
- * Leveling undershoots by less than one pixel per active column (<= ~11px):
+ * target, then hand the undershoot back one pixel each to the columns
+ * clamped at exactly L, highest index first, so the total equals the target
+ * exactly. Highest index first because the per-pixel loop takes the final
+ * round's pixels from tied columns in index order and stops mid-round: the
+ * columns it never reached — the highest-indexed — are the ones left one
+ * pixel above the level. Columns pinned by their floor or natural width
+ * take nothing back; the rule never leaves them off their pin. Leveling
+ * undershoots by less than one pixel per level-clamped column (<= ~11px):
  * undershooting the target requires the target to be reachable, which
  * needs <= 12 columns. When the floor sum 246 + 84×(cols−1) exceeds the
  * target (13+ columns), the floors win and the table stays over target.
+ * tests/core/pixel-layout.test.ts holds this arithmetic form to the
+ * per-pixel rule over randomized grids.
  */
 function shrinkToTarget(widths: number[]): void {
   const cols = widths.length;
@@ -196,16 +203,16 @@ function shrinkToTarget(widths: number[]): void {
 
   const shrunk = widths.map((w, c) => Math.max(columnFloor(c), Math.min(w, level)));
   let leftover = TARGET_WIDTH - shrunk.reduce((sum, w) => sum + w, chrome);
-  // Hand the undershoot back, widest first, lowest index first, one pixel
-  // each — only to columns the level actually shrank, so no column ever
-  // exceeds its natural width.
-  const candidates = shrunk
-    .map((w, c) => ({ w, c }))
-    .filter(({ w, c }) => w < widths[c])
-    .sort((a, b) => b.w - a.w || a.c - b.c);
-  for (const candidate of candidates) {
-    if (leftover === 0) break;
-    shrunk[candidate.c]++;
+  // Hand the undershoot back one pixel each, highest index first, only to
+  // columns sitting exactly at the level with natural width to spare — a
+  // floor-pinned column stays at its floor, and no column ever exceeds its
+  // natural width (see the header comment for why this order is the
+  // per-pixel rule's).
+  const clamped = shrunk
+    .map((_, c) => c)
+    .filter((c) => shrunk[c] === level && level < widths[c]);
+  for (let i = clamped.length - 1; i >= 0 && leftover > 0; i--) {
+    shrunk[clamped[i]]++;
     leftover--;
   }
   for (let c = 0; c < cols; c++) widths[c] = shrunk[c];
