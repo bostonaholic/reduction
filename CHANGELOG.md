@@ -20,4 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Choose the Claude model and effort level used to infer the recipe tree. (#2)
 - Export the diagram as an image, or print it.
 
+### Fixed
+
+- Write a plural unit when a recipe calls for more than one — "2 cloves garlic",
+  not "2 clove garlic". (#5)
+
 [Unreleased]: https://github.com/bostonaholic/reduction/commits/main

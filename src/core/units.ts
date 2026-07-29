@@ -51,6 +51,42 @@ export const UNIT_PATTERN = [...UNIT_LOOKUP.keys()]
   .map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   .join('|');
 
+/**
+ * Units that are words rather than abbreviations, with the plural a cook writes.
+ *
+ * Abbreviations are deliberately absent: Cooking For Engineers writes "4 oz"
+ * and "2 tbsp", never "4 ozs". So are the size words — "large" is an adjective
+ * describing the egg, so "2 larges eggs" is not English.
+ */
+const UNIT_PLURALS: Record<string, string> = {
+  cup: 'cups',
+  pint: 'pints',
+  quart: 'quarts',
+  gallon: 'gallons',
+  stick: 'sticks',
+  clove: 'cloves',
+  can: 'cans',
+  package: 'packages',
+  slice: 'slices',
+  pinch: 'pinches',
+  dash: 'dashes',
+  sprig: 'sprigs',
+  bunch: 'bunches',
+  head: 'heads',
+  shot: 'shots',
+};
+
+/**
+ * The unit as written for this amount: "1 clove", "2 cloves", always "4 oz".
+ *
+ * Parsing canonicalizes "cloves" down to "clove", which is right for lookup and
+ * wrong for display — without this the table reads "2 clove garlic".
+ */
+export function pluralizeUnit(unit: string, quantity: number | undefined): string {
+  if (quantity === undefined || quantity <= 1) return unit;
+  return UNIT_PLURALS[unit] ?? unit;
+}
+
 /** Resolve a written unit to its canonical form, or undefined if unrecognized. */
 export function canonicalUnit(raw: string): string | undefined {
   const key = raw.toLowerCase().replace(/\.$/, '').trim();

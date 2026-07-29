@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   cellsByRow,
   column,
+  formatIngredient,
   formatQuantity,
   layout,
   leafCount,
   validateGrid,
 } from '../../src/core/layout.js';
+import { parseIngredient } from '../../src/core/ingredient.js';
 import type { Cell, Ingredient, Recipe, RecipeNode } from '../../src/core/types.js';
 
 function ing(name: string, quantity?: number, unit?: string, metric?: string): RecipeNode {
@@ -89,6 +91,43 @@ describe('formatQuantity', () => {
     expect(formatQuantity(1.25)).toBe('1 1/4');
     expect(formatQuantity(2)).toBe('2');
     expect(formatQuantity(undefined)).toBe('');
+  });
+});
+
+describe('formatIngredient', () => {
+  const render = (line: string): string =>
+    formatIngredient({ kind: 'ingredient', ingredient: parseIngredient(line) });
+
+  it('pluralizes a word unit when there is more than one of it', () => {
+    expect(render('2 cloves garlic, minced')).toBe('2 cloves garlic, minced');
+    expect(render('4 cups vegetable broth')).toBe('4 cups (945 mL) vegetable broth');
+    expect(render('2 sticks butter')).toBe('2 sticks (225 g) butter');
+  });
+
+  it('uses the irregular plural where the unit has one', () => {
+    expect(render('3 pinches salt')).toBe('3 pinches salt');
+    expect(render('2 dashes bitters')).toBe('2 dashes bitters');
+    expect(render('2 bunches parsley')).toBe('2 bunches parsley');
+  });
+
+  it('leaves a single unit alone', () => {
+    expect(render('1 cup sugar')).toBe('1 cup (200 g) sugar');
+    expect(render('1 clove garlic')).toBe('1 clove garlic');
+  });
+
+  it('never pluralizes an abbreviation — Cooking For Engineers writes "4 oz"', () => {
+    expect(render('4 oz butter')).toBe('4 oz (115 g) butter');
+    expect(render('2 tbsp olive oil')).toBe('2 tbsp (27 g) olive oil');
+    expect(render('2 lbs beef')).toBe('2 lb (905 g) beef');
+  });
+
+  it('never pluralizes a size word — "2 larges eggs" is not English', () => {
+    expect(render('2 large eggs')).toBe('2 large (100 g) eggs');
+    expect(render('3 small onions')).toBe('3 small onions');
+  });
+
+  it('pluralizes a fractional amount above one', () => {
+    expect(render('1 1/2 cups flour')).toBe('1 1/2 cups (190 g) flour');
   });
 });
 

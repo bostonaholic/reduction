@@ -19,6 +19,7 @@
  * real Cooking For Engineers table rather than a grid of tiny empty boxes.
  */
 
+import { pluralizeUnit } from './units.js';
 import type { Cell, Grid, Recipe, RecipeNode } from './types.js';
 
 /** Depth from the leaves. Ingredients live in column 0. */
@@ -51,7 +52,9 @@ export function formatIngredient(node: RecipeNode): string {
     return note ? `${name}, ${note}` : raw;
   }
 
-  const amount = [formatQuantity(quantity), unit].filter(Boolean).join(' ');
+  const amount = [formatQuantity(quantity), unit && pluralizeUnit(unit, quantity)]
+    .filter(Boolean)
+    .join(' ');
   const withMetric = metric ? `${amount} (${metric})` : amount;
   const head = [withMetric, name].filter(Boolean).join(' ');
   return note ? `${head}, ${note}` : head;

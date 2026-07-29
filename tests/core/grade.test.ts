@@ -466,9 +466,19 @@ describe('L7 — orphan rate', () => {
 
 describe('L8 — amounts render correctly', () => {
   it('flags a singular unit on a plural amount', () => {
-    // "2 cloves garlic" renders as "2 clove garlic" — the unit is singularized
-    // during parsing and never restored.
-    expectRule(gradeCard(goodCard(), raw()), 'L8', /clove/);
+    // `formatIngredient` pluralizes every unit it knows, so this is built by
+    // hand: a card from the Claude path can carry a unit the table has never
+    // seen, and the rule still has to notice "3 piece chocolate".
+    const odd: RecipeNode = {
+      kind: 'ingredient',
+      ingredient: { raw: '3 pieces dark chocolate', name: 'dark chocolate', quantity: 3, unit: 'piece' },
+    };
+    expectRule(gradeCard(card(op('melt', 0, odd)), raw()), 'L8', /piece/);
+  });
+
+  it('passes now that known units pluralize', () => {
+    // "2 cloves garlic" used to render as "2 clove garlic".
+    expect(rules(gradeCard(goodCard(), raw()))).not.toContain('L8');
   });
 
   it('does not flag an abbreviation, which never pluralizes', () => {
@@ -500,8 +510,9 @@ describe('the rule set', () => {
   });
 
   it('honours a skip list', () => {
-    expect(rules(gradeCard(goodCard(), raw()))).toContain('L8');
-    expect(rules(gradeCard(goodCard(), raw(), { skip: ['L8'] }))).not.toContain('L8');
+    const flat = card(op('serve', 4, ...LINES.map((l) => leaf[l])));
+    expect(rules(gradeCard(flat, raw()))).toContain('L7');
+    expect(rules(gradeCard(flat, raw(), { skip: ['L7'] }))).not.toContain('L7');
   });
 
   it('groups findings by tier', () => {
@@ -516,10 +527,10 @@ describe('the rule set', () => {
     expect(DEFAULT_LIMITS.orphanRate).toBeGreaterThan(0);
   });
 
-  it('leaves the shipped pita card clean apart from the known plural defect', () => {
+  it('leaves the shipped pita card clean on every tier', () => {
     const byTier = gradeByTier(goodCard(), raw());
     expect(byTier.S).toEqual([]);
     expect(byTier.F).toEqual([]);
-    expect(rules(byTier.L)).toEqual(['L8']);
+    expect(byTier.L).toEqual([]);
   });
 });

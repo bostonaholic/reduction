@@ -188,11 +188,11 @@ entitled to assume a tree — so S1 and S2 are reported and the later tiers,
 which would crash, are skipped. That matches the tier contract: a structural
 failure makes the card INVALID rather than low-scoring.
 
-**Known exclusion: L8.** The fixtures gate skips it because it currently fails
-for real — a unit is singularized during parsing and never restored, so
-`2 cloves garlic` renders as `2 clove garlic`. That is a defect in the
-ingredient formatter, tracked separately; skipping it explicitly is honest,
-dropping the rule would not be.
+L8 used to be excluded here: parsing canonicalizes `cloves` down to `clove`
+for lookup, and nothing restored the plural for display, so the table read
+`2 clove garlic`. `pluralizeUnit` now does, and the gate runs the whole tier
+with no exclusions. Abbreviations and size words are deliberately left alone —
+Cooking For Engineers writes `4 oz`, and `2 larges eggs` is not English.
 
 **F6 is tuned for precision over recall, deliberately.** Heat legitimately
 reaches ingredients a step never names ("add the flour, then bake"), so the
