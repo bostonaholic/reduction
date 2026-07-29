@@ -46,6 +46,12 @@ const ENTITIES: Record<string, string> = {
  * reaches terminals (and agent transcripts) verbatim, and an escape
  * sequence in it could repaint the screen or forge output. `\s+` handles
  * the whitespace controls, so only the non-whitespace ones are stripped.
+ *
+ * The bidi controls (U+200E/U+200F, U+202A–U+202E, U+2066–U+2069) and the
+ * zero-width space (U+200B) go too — invisible, and able to reorder or
+ * hide rendered text in a terminal. ZWNJ (U+200C) and ZWJ (U+200D) are
+ * deliberately kept: they are orthographically required in Persian, Hindi,
+ * and emoji sequences, and stripping them would corrupt legitimate recipes.
  */
 export function plainText(input: string): string {
   return input
@@ -55,7 +61,7 @@ export function plainText(input: string): string {
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
     .replace(/&([a-z][a-z0-9]*);/gi, (whole, name) => ENTITIES[name.toLowerCase()] ?? whole)
-    .replace(/[\u0000-\u0008\u000E-\u001F\u007F-\u009F]/g, '')
+    .replace(/[\u0000-\u0008\u000E-\u001F\u007F-\u009F\u200B\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

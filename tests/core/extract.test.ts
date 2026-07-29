@@ -37,6 +37,23 @@ describe('plainText control characters', () => {
   });
 });
 
+describe('plainText bidi and zero-width code points', () => {
+  it('strips the zero-width space and bidi controls that can reorder or hide text', () => {
+    expect(plainText('a\u200Bb\u200Ec\u200Fd')).toBe('abcd');
+    expect(plainText('x\u202Ay\u202Ez\u2066w\u2069v')).toBe('xyzwv');
+  });
+
+  it('preserves ZWNJ and ZWJ, which Persian, Hindi, and emoji text require', () => {
+    // Persian "نان\u200Cها" (breads) joins its plural suffix with a ZWNJ; Hindi
+    // conjuncts and emoji sequences rely on ZWJ. Stripping either corrupts
+    // legitimate recipe text.
+    const persian = 'نان\u200Cها';
+    const emojiCook = '\u{1F469}\u200D\u{1F373}';
+    expect(plainText(persian)).toBe(persian);
+    expect(plainText(emojiCook)).toBe(emojiCook);
+  });
+});
+
 describe('extractRecipe size caps', () => {
   it('caps ingredient and step counts so a hostile page cannot build an unbounded tree', () => {
     const html = [

@@ -1,10 +1,13 @@
 /**
  * Terminal hygiene for CLI messages.
  *
- * Page text is sanitized by plainText at extraction, but argv values and
- * remote API responses reach stderr without passing through it. The Skill
- * tells the agent to relay stderr lines to the user, so anything derived
- * from those sources is stripped before interpolation into a message.
+ * Page text takes a similar strip in plainText at extraction — though that
+ * one keeps ZWNJ/ZWJ, which real recipes need — but argv values and remote
+ * API responses reach stderr without passing through it. The Skill tells
+ * the agent to relay stderr lines to the user, so anything derived from
+ * those sources is stripped before interpolation into a message. The
+ * aggressive strip here is fine because it only ever touches error text,
+ * never recipe content.
  */
 
 /**
