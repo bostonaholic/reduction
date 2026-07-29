@@ -17,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Include the recipe's URL in the generated recipe card. (#9)
+- A `reduction` CLI: render any recipe URL as a tabular diagram from the
+  terminal, in box-drawing text (default), JSON, or HTML. Install it with
+  `npm link`; pass `--claude` to opt in to Claude escalation for
+  low-confidence parses (requires `ANTHROPIC_API_KEY`).
+- An agent Skill at `.claude/skills/reduction`, so Claude Code and other
+  skill-capable agents can drive the CLI on a recipe link.
+- A banner row announces when a recipe's ingredient or step list was capped at
+  500 items, rather than presenting a truncated diagram as complete — in the
+  extension and the CLI alike.
+
+### Internal
+
+- jsdom is now a runtime dependency (the CLI parses fetched pages with it),
+  and `npm install` builds the project via the `prepare` script.
 
 ## [0.1.0] - 2026-07-29
 
