@@ -51,13 +51,19 @@ test('exposes a working options page', async () => {
   await expect(page.locator('h1')).toHaveText('Reduction');
   await expect(page.locator('#key')).toBeVisible();
 
-  // The key round-trips through extension storage.
+  // The picker is populated from the model list, and defaults to the first one.
+  await expect(page.locator('#model option')).not.toHaveCount(0);
+  await expect(page.locator('#model')).toHaveValue('claude-opus-5');
+
+  // The key and the model round-trip through extension storage.
   await page.fill('#key', 'sk-ant-test-key');
+  await page.selectOption('#model', 'claude-haiku-4-5');
   await page.click('#save');
   await expect(page.locator('#status')).toHaveText('Saved');
 
   await page.reload();
   await expect(page.locator('#key')).toHaveValue('sk-ant-test-key');
+  await expect(page.locator('#model')).toHaveValue('claude-haiku-4-5');
 
   await page.close();
 });

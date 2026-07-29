@@ -28,7 +28,8 @@
         font-size: 13.5px;
         margin-bottom: 6px;
       }
-      input[type="password"] {
+      input[type="password"],
+      select {
         width: 100%;
         font: inherit;
         font-size: 14px;
@@ -36,6 +37,8 @@
         border: 1px solid #c8ccc2;
         border-radius: 6px;
         box-sizing: border-box;
+        background: #fff;
+        color: inherit;
       }
       .hint {
         font-size: 12.5px;
@@ -80,6 +83,15 @@
     <p class="hint">
       Stored in this browser's extension storage and sent only to api.anthropic.com.
       Without a key, low-confidence recipes fall back to a plain sequential table.
+    </p>
+
+    <label for="model">Model</label>
+    <select id="model"></select>
+    <p class="hint">
+      Every option produces the same table; they differ in how well they work out
+      which step uses which ingredient, and in what Anthropic charges you per
+      recipe. Faster models cost less and are more likely to misread an unusual
+      recipe — the overlay always labels its own confidence either way.
     </p>
 
     <div class="row">

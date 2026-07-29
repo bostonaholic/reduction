@@ -26,5 +26,6 @@ export interface ClaudeReply {
 export const STORAGE_KEYS = {
   apiKey: 'anthropicApiKey',
   useClaude: 'useClaudeFallback',
+  model: 'claudeModel',
   printPayload: 'printPayload',
 } as const;

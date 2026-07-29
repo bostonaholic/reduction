@@ -9,7 +9,39 @@
 import { PLAN_SCHEMA, type Plan } from '../core/plan.js';
 
 const ENDPOINT = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-opus-5';
+
+export interface ModelOption {
+  id: string;
+  /** Shown in the options page picker. */
+  label: string;
+  /**
+   * Effort to request, for models that accept one. Haiku 4.5 rejects
+   * `output_config.effort` outright, so its entry leaves this unset and the
+   * field is omitted from the request.
+   */
+  effort?: 'low';
+}
+
+/**
+ * The models offered in the options page. All of them support structured
+ * outputs, which the flat-plan schema depends on; ordered most capable first.
+ */
+export const MODELS: readonly ModelOption[] = [
+  { id: 'claude-opus-5', label: 'Claude Opus 5 — most accurate', effort: 'low' },
+  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 — balanced', effort: 'low' },
+  { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 — fastest and cheapest' },
+];
+
+export const DEFAULT_MODEL = MODELS[0];
+
+/**
+ * Look up a stored model id. Anything unrecognised — a hand-edited setting, or
+ * an id this version no longer offers — falls back to the default rather than
+ * failing the request with a 404.
+ */
+export function resolveModel(id: string | undefined): ModelOption {
+  return MODELS.find((model) => model.id === id) ?? DEFAULT_MODEL;
+}
 
 const SYSTEM = `You convert recipes into the tabular diagram format used by Cooking For Engineers.
 
@@ -36,6 +68,7 @@ function buildPrompt(title: string, ingredients: string[], steps: string[]): str
 /** Ask Claude for the plan. Throws with a usable message on any failure. */
 export async function callClaude(
   apiKey: string,
+  model: ModelOption,
   title: string,
   ingredients: string[],
   steps: string[],
@@ -50,13 +83,13 @@ export async function callClaude(
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: model.id,
       max_tokens: 16000,
       system: SYSTEM,
       // Adaptive thinking with low effort: cheap and fast, and it avoids the
       // failure modes that come with disabling thinking outright.
       output_config: {
-        effort: 'low',
+        ...(model.effort ? { effort: model.effort } : {}),
         format: { type: 'json_schema', schema: PLAN_SCHEMA },
       },
       messages: [{ role: 'user', content: buildPrompt(title, ingredients, steps) }],
