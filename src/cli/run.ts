@@ -33,6 +33,16 @@ const HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
 };
 
+/** Give slow servers a fair chance, then fail rather than hang. */
+const FETCH_TIMEOUT_MS = 30_000;
+
+/**
+ * The largest page captured by tools/capture-fixtures.mjs is under 2 MiB, so
+ * 25 MiB is more than ten times the biggest real recipe page we have seen —
+ * anything over it is not worth parsing, and jsdom never sees it.
+ */
+const MAX_BODY_BYTES = 25 * 1024 * 1024;
+
 export interface RunArgs {
   url: string;
   format: OutputFormat;
@@ -54,7 +64,10 @@ interface Sink {
 }
 
 export interface RunDeps {
-  fetch(url: string, init?: { headers?: Record<string, string> }): Promise<CliResponse>;
+  fetch(
+    url: string,
+    init?: { headers?: Record<string, string>; signal?: AbortSignal },
+  ): Promise<CliResponse>;
   stdout: Sink;
   stderr: Sink;
   env: Record<string, string | undefined>;
@@ -73,18 +86,44 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
     return 2;
   }
 
+  // Redirects are followed (the fetch default); the final res.url becomes the
+  // recipe's sourceUrl. The CLI fetches whatever URL it is given with the
+  // invoking user's network access — localhost and private addresses are in
+  // scope, stated rather than blocked.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let res: CliResponse;
+  let html: string;
   try {
-    res = await deps.fetch(args.url, { headers: HEADERS });
+    res = await deps.fetch(args.url, { headers: HEADERS, signal: controller.signal });
+    if (!res.ok) {
+      stderr.write(`fetch failed: HTTP ${res.status}\n`);
+      return 1;
+    }
+    // An honest Content-Length lets us refuse the body without reading it.
+    const declared = Number(res.headers.get('content-length'));
+    if (declared > MAX_BODY_BYTES) {
+      stderr.write(`too large (${declared} bytes)\n`);
+      return 1;
+    }
+    html = await res.text();
   } catch (err) {
-    stderr.write(`${(err as Error).message ?? err}\n`);
+    // Any throw during fetch or read exits 1 — including a RangeError from
+    // res.text() on an over-long body. An out-of-memory kill exits outside
+    // the 0/1/2 contract, uncaught; nothing here can intercept it.
+    const error = err as Error;
+    stderr.write(error.name === 'AbortError' ? 'timeout\n' : `${error.message ?? err}\n`);
+    return 1;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  // Servers may omit or understate Content-Length, so re-check what arrived.
+  const actual = Buffer.byteLength(html);
+  if (actual > MAX_BODY_BYTES) {
+    stderr.write(`too large (${actual} bytes)\n`);
     return 1;
   }
-  if (!res.ok) {
-    stderr.write(`fetch failed: HTTP ${res.status}\n`);
-    return 1;
-  }
-  const html = await res.text();
 
   const doc = new JSDOM(html).window.document;
   let raw;

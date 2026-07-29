@@ -246,3 +246,75 @@ describe('run claude fallback', () => {
   });
 });
 
+describe('run size cap', () => {
+  it('rejects an over-25 MiB Content-Length without reading the body and exits 1', async () => {
+    const body = vi.fn(async () => '');
+    const fetchPage = vi.fn().mockResolvedValue(
+      pageResponse('', {
+        headers: new Headers({ 'content-length': String(26 * 1024 * 1024) }),
+        text: body,
+      }),
+    );
+    const { deps, stdout, stderr } = makeDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+
+    expect(exit).toBe(1);
+    expect(stderr.text).toMatch(/too large \(\d+ bytes\)/);
+    expect(body).not.toHaveBeenCalled();
+    expect(stdout.text).toBe('');
+  });
+
+  it('rejects a body over 25 MiB when no Content-Length warned of it and exits 1', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(
+      pageResponse('', {
+        headers: new Headers(),
+        text: async () => 'x'.repeat(26 * 1024 * 1024),
+      }),
+    );
+    const { deps, stdout, stderr } = makeDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+
+    expect(exit).toBe(1);
+    expect(stderr.text).toMatch(/too large \(\d+ bytes\)/);
+    expect(stdout.text).toBe('');
+  });
+});
+
+describe('run timeout', () => {
+  it('aborts after 30 s, reports timeout, and exits 1', async () => {
+    vi.useFakeTimers();
+    const hangingFetch = vi.fn(
+      (_input: unknown, init?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' })),
+          );
+        }),
+    );
+    const { deps, stdout, stderr } = makeDeps(hangingFetch);
+
+    const pending = run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(await pending).toBe(1);
+    expect(stderr.text).toContain('timeout');
+    expect(stdout.text).toBe('');
+  });
+});
+
+describe('run redirect', () => {
+  it('uses the post-redirect res.url as the recipe sourceUrl', async () => {
+    const finalUrl = 'https://example.test/brownies-moved';
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValue(pageResponse(CONFIDENT_PAGE, { url: finalUrl }));
+    const { deps, stdout } = makeDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    expect(JSON.parse(stdout.text).recipe.sourceUrl).toBe(finalUrl);
+  });
+});

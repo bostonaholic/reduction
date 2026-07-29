@@ -10,6 +10,14 @@
 import { parseArgs, USAGE } from './args.js';
 import { run } from './run.js';
 
+// A consumer that closes stdout early (`… | head`) took what it wanted;
+// exiting 0 quietly honors that, where crashing on EPIPE would not. The
+// listener covers writes that fail asynchronously.
+process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') process.exit(0);
+  throw err;
+});
+
 const parsed = parseArgs(process.argv.slice(2));
 
 if (parsed.kind === 'help') {
@@ -19,12 +27,18 @@ if (parsed.kind === 'help') {
   process.stderr.write(`${parsed.message}\n\n${USAGE}`);
   process.exit(2);
 } else {
-  process.exitCode = await run(parsed, {
-    fetch: (url, init) => fetch(url, init),
-    stdout: process.stdout,
-    stderr: process.stderr,
-    env: process.env,
-    // Piped output has no terminal width, so fall back to 100 columns.
-    width: process.stdout.isTTY ? process.stdout.columns : 100,
-  });
+  try {
+    process.exitCode = await run(parsed, {
+      fetch: (url, init) => fetch(url, init),
+      stdout: process.stdout,
+      stderr: process.stderr,
+      env: process.env,
+      // Piped output has no terminal width, so fall back to 100 columns.
+      width: process.stdout.isTTY ? process.stdout.columns : 100,
+    });
+  } catch (err) {
+    // The synchronous half of the EPIPE contract above.
+    if ((err as NodeJS.ErrnoException).code === 'EPIPE') process.exitCode = 0;
+    else throw err;
+  }
 }
