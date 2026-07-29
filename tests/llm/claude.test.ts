@@ -130,4 +130,30 @@ describe('callClaude', () => {
       expect(body.output_config.format.type).toBe('json_schema');
     }
   });
+
+  it('clips each prompt line, so one huge line cannot fill the context window', async () => {
+    // The extraction caps bound line counts, not line lengths — without a
+    // per-line clip a single multi-megabyte "ingredient" would reach the API
+    // intact and spend the user's budget on garbage.
+    const huge = `1 cup sugar, then ${'x'.repeat(100_000)}`;
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ content: [{ type: 'text', text: '{"banners":[],"steps":[]}' }] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await callClaude(
+      { apiKey: 'sk-ant-test', model: DEFAULT_MODEL, effort: DEFAULT_EFFORT, browser: false },
+      huge,
+      [huge, '4 oz butter'],
+      [huge],
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const prompt: string = body.messages[0].content;
+    expect(prompt).not.toContain(huge);
+    expect(prompt).toContain('1 cup sugar, then ');
+    expect(prompt).toContain('4 oz butter'); // Short lines pass untouched.
+    expect(prompt.length).toBeLessThan(2000);
+  });
 });

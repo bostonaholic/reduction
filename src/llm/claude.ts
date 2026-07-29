@@ -105,10 +105,23 @@ Rules:
   has them. "mix", "fold in", "bake 350°F (175°C) 30 to 40 min".
 - Exactly one step should end up unconsumed: the final one.`;
 
+/**
+ * The extraction caps bound how many lines reach this prompt, but not how
+ * long each is — a hostile page could pack megabytes into one ingredient
+ * line and fill the context window on the user's key. Real ingredient lines
+ * are under a hundred characters and step texts under a few hundred, so
+ * clipping at 300 loses nothing a genuine recipe needs.
+ */
+const MAX_PROMPT_LINE_CHARS = 300;
+
+function clip(text: string): string {
+  return text.length > MAX_PROMPT_LINE_CHARS ? text.slice(0, MAX_PROMPT_LINE_CHARS) : text;
+}
+
 function buildPrompt(title: string, ingredients: string[], steps: string[]): string {
-  const ingredientList = ingredients.map((line, i) => `${i}: ${line}`).join('\n');
-  const stepList = steps.map((text, i) => `${i}: ${text}`).join('\n');
-  return `Recipe: ${title}\n\nIngredients (index: text)\n${ingredientList}\n\nInstructions (index: text)\n${stepList}`;
+  const ingredientList = ingredients.map((line, i) => `${i}: ${clip(line)}`).join('\n');
+  const stepList = steps.map((text, i) => `${i}: ${clip(text)}`).join('\n');
+  return `Recipe: ${clip(title)}\n\nIngredients (index: text)\n${ingredientList}\n\nInstructions (index: text)\n${stepList}`;
 }
 
 /**
