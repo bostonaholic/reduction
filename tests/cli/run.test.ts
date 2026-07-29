@@ -433,3 +433,207 @@ describe('run redirect', () => {
     expect(JSON.parse(stdout.text).recipe.sourceUrl).toBe(finalUrl);
   });
 });
+
+// ————— vector formats (docs/plans/2026-07-29-cli-vector-formats) —————
+
+/** Collects string and binary writes alike, standing in for process.stdout. */
+function binarySink() {
+  const chunks: (string | Uint8Array)[] = [];
+  return {
+    write(chunk: string | Uint8Array): boolean {
+      chunks.push(chunk);
+      return true;
+    },
+    get chunks() {
+      return chunks;
+    },
+    get text() {
+      return chunks
+        .map((chunk) => (typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)))
+        .join('');
+    },
+  };
+}
+
+function makeFormatDeps(
+  fetch: (...args: any[]) => any,
+  options: { tty?: boolean; loadResvg?: () => Promise<unknown> } = {},
+) {
+  const stdout = binarySink();
+  const stderr = sink();
+  const deps = {
+    fetch,
+    stdout,
+    stderr,
+    env: {},
+    width: 100,
+    stdoutIsTTY: options.tty ?? false,
+    loadResvg: options.loadResvg,
+  };
+  return { deps, stdout, stderr };
+}
+
+const PNG_BYTES = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+/** A stand-in @resvg/resvg-js module: fixed bytes, no native code. */
+function fakeResvgModule() {
+  class FakeResvg {
+    constructor(_svg: string, _options?: unknown) {}
+    render() {
+      return { asPng: () => PNG_BYTES };
+    }
+  }
+  return { Resvg: FakeResvg };
+}
+
+/** n chained steps, each consuming the last: column count grows with n. */
+function chainPage(n: number): string {
+  return jsonLdPage({
+    '@context': 'https://schema.org',
+    '@type': 'Recipe',
+    name: 'Chain Reaction',
+    recipeIngredient: Array.from({ length: n }, (_, i) => `1 cup item${i}`),
+    recipeInstructions: Array.from({ length: n }, (_, i) => ({
+      '@type': 'HowToStep',
+      text: `Stir in the item${i}.`,
+    })),
+  });
+}
+
+describe('run --format svg (slice 1)', () => {
+  it('writes the SVG diagram to stdout with a trailing newline and the note to stderr only', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'svg', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    expect(stdout.text).toMatch(/^<svg/);
+    expect(stdout.text).toMatch(/<\/svg>\n$/);
+    expect(stdout.text).toContain('butter');
+    // Decision 15: the artifact is the table only — no title, no note.
+    expect(stdout.text).not.toContain('Test Brownies');
+    expect(stderr.text).toMatch(/ingredients matched a step|listed in order/);
+    expect(stdout.text).not.toContain(stderr.text.trim());
+  });
+});
+
+describe('run binary formats refuse a TTY (slices 3 and 4)', () => {
+  it.each(['png', 'pdf'] as const)(
+    'refuses --format %s on a TTY with exit 2 before fetching',
+    async (format) => {
+      const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+      const { deps, stdout, stderr } = makeFormatDeps(fetchPage, {
+        tty: true,
+        loadResvg: async () => fakeResvgModule(),
+      });
+
+      const exit = await run({ url: PAGE_URL, format, claude: false }, deps);
+
+      expect(exit).toBe(2);
+      expect(fetchPage).not.toHaveBeenCalled();
+      expect(stderr.text).toMatch(/refus/i);
+      expect(stderr.text).toMatch(/redirect/i);
+      expect(stdout.chunks).toHaveLength(0);
+    },
+  );
+});
+
+describe('run --format png through the loadResvg seam (slice 3)', () => {
+  it('pipes the rasterized bytes to stdout intact when stdout is not a TTY', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const loadResvg = vi.fn(async () => fakeResvgModule());
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, { loadResvg });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    const binary = stdout.chunks.find((c): c is Uint8Array => c instanceof Uint8Array);
+    expect(binary, 'png bytes must reach the sink as a Uint8Array').toBeDefined();
+    expect(Array.from(binary!)).toEqual(Array.from(PNG_BYTES));
+    expect(stderr.text).toMatch(/ingredients matched a step|listed in order/);
+  });
+
+  it('exits 2 before the fetch with the reinstall remedy when resvg is not installed', async () => {
+    const missing = Object.assign(new Error("Cannot find package '@resvg/resvg-js'"), {
+      code: 'ERR_MODULE_NOT_FOUND',
+    });
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, {
+      loadResvg: () => Promise.reject(missing),
+    });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(2);
+    expect(fetchPage).not.toHaveBeenCalled();
+    expect(stderr.text).toContain('npm install @resvg/resvg-js');
+    expect(stderr.text).toMatch(/omit=optional/);
+    expect(stdout.chunks).toHaveLength(0);
+  });
+
+  it('exits 1 with a stripped one-line reason and a reinstall hint when resvg cannot load', async () => {
+    const ESCAPE = String.fromCharCode(27);
+    const broken = new Error(
+      `Failed to load native binding${ESCAPE}[31m at /home/someone/secret${ESCAPE}[0m`,
+    );
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, {
+      loadResvg: () => Promise.reject(broken),
+    });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(1);
+    expect(fetchPage).not.toHaveBeenCalled();
+    expect(stderr.text).toContain('Failed to load native binding');
+    expect(stderr.text).not.toContain(ESCAPE);
+    expect(stderr.text).toMatch(/reinstall|npm install/i);
+    expect(stderr.text).not.toMatch(/\n\s+at /); // one line, never a stack
+    expect(stdout.chunks).toHaveLength(0);
+  });
+
+  it('advises on stderr when the area clamp pulls the scale below 2×', async () => {
+    // 550 chained steps (capped at 500) build a ~500-column, ~500-row grid
+    // whose 2× raster would blow the 64 Mpx bound: the applied scale drops
+    // below 2 and run() must say so, naming the value.
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(chainPage(550)));
+    const loadResvg = vi.fn(async () => fakeResvgModule());
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, { loadResvg });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    expect(stdout.chunks.some((c) => c instanceof Uint8Array)).toBe(true);
+    expect(stderr.text).toMatch(/scal/i);
+    expect(stderr.text).toMatch(/\b0\.\d+/);
+  });
+});
+
+describe('run --format pdf (slice 4)', () => {
+  it('pipes PDF bytes to stdout and the note to stderr when piped', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'pdf', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    const binary = stdout.chunks.find((c): c is Uint8Array => c instanceof Uint8Array);
+    expect(binary, 'pdf bytes must reach the sink as a Uint8Array').toBeDefined();
+    const header = String.fromCharCode(...binary!.slice(0, 5));
+    expect(header).toBe('%PDF-');
+    expect(stderr.text).toMatch(/ingredients matched a step|listed in order/);
+  });
+
+  it('advises on stderr when the 14,400pt page limit scales the drawing down', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(chainPage(550)));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'pdf', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    expect(stdout.chunks.some((c) => c instanceof Uint8Array)).toBe(true);
+    expect(stderr.text).toMatch(/scal/i);
+    expect(stderr.text).toMatch(/\b0\.\d+/);
+  });
+});

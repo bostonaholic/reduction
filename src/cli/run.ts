@@ -15,6 +15,7 @@ import { flatTree, inferTree } from '../core/infer.js';
 import { layout } from '../core/layout.js';
 import { treeFromPlan } from '../core/plan.js';
 import { confidenceNote, renderTable } from '../core/render.js';
+import { renderSvg } from '../core/render-svg.js';
 import { renderText } from '../core/render-text.js';
 import { callClaude, resolveEffort, resolveModel } from '../llm/claude.js';
 import type { OutputFormat } from './args.js';
@@ -213,7 +214,12 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
         ? `${JSON.stringify({ recipe, grid, note: confidenceNote(recipe) })}\n`
         : args.format === 'html'
           ? `${renderTable(recipe, grid)}\n`
-          : renderText(recipe, grid, deps.width);
+          : args.format === 'svg'
+            ? `${renderSvg(grid)}\n`
+            : renderText(recipe, grid, deps.width);
+    // The image artifact is the table only (decision 15); the confidence
+    // note still reaches the user on stderr so a bad parse stays visible.
+    if (args.format === 'svg') stderr.write(`${confidenceNote(recipe).text}\n`);
   } catch (err) {
     stderr.write(`${stripControls((err as Error).message ?? String(err))}\n`);
     return 1;

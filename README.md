@@ -57,7 +57,9 @@ Formats: `--format text` (default) prints a box-drawing table at the
 terminal's width (100 columns when piped); `--format json` prints the
 recipe, grid, and confidence note for scripts and agents; `--format html`
 prints the same markup the extension renders — unstyled without the
-extension's `overlay.css` around it.
+extension's `overlay.css` around it; `--format svg` prints the same
+diagram the extension exports as a standalone SVG image (the confidence
+note goes to stderr, never into the artifact).
 
 `--claude` opts in to the Claude tier when the local parse is
 low-confidence. It reads `ANTHROPIC_API_KEY` and spends your API budget,

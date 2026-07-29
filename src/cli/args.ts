@@ -9,16 +9,21 @@
 
 import { stripControls } from './sanitize.js';
 
-export type OutputFormat = 'text' | 'json' | 'html';
+/**
+ * The full planned format set; FORMATS below is the runtime whitelist and
+ * grows as each format's dispatch arm lands.
+ */
+export type OutputFormat = 'text' | 'json' | 'html' | 'svg' | 'png' | 'pdf';
 
-const FORMATS: readonly OutputFormat[] = ['text', 'json', 'html'];
+/** Exported so the skill drift test binds SKILL.md to the real format list. */
+export const FORMATS: readonly OutputFormat[] = ['text', 'json', 'html', 'svg'];
 
 export type ParsedArgs =
   | { kind: 'run'; url: string; format: OutputFormat; claude: boolean }
   | { kind: 'help' }
   | { kind: 'error'; message: string };
 
-export const USAGE = `Usage: reduction <url> [--format text|json|html] [--claude] [--help]
+export const USAGE = `Usage: reduction <url> [--format text|json|html|svg] [--claude] [--help]
 
 Fetch a recipe page and print it as a tabular diagram.
 
@@ -26,6 +31,7 @@ Formats:
   text   a box-drawing table for the terminal (default)
   json   the recipe, grid, and confidence note as JSON
   html   the same markup the extension renders
+  svg    the extension's diagram as a standalone SVG image
 
 Options:
   --claude   when the local parse is low-confidence, ask Claude to improve it

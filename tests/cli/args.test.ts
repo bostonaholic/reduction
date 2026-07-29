@@ -95,3 +95,20 @@ describe('parseArgs', () => {
     expect(parseArgs(['--help']).kind).toBe('help');
   });
 });
+
+describe('parseArgs vector formats (slices 1, 3, 4)', () => {
+  it.each(['svg', 'png', 'pdf'])('accepts --format %s', (format) => {
+    expect(parseArgs(['https://example.test/brownies', '--format', format])).toMatchObject({
+      kind: 'run',
+      format,
+    });
+  });
+
+  it('exports the FORMATS whitelist in USAGE order for the skill drift test', async () => {
+    // Dynamic import: a static named import of a not-yet-exported const
+    // would error the whole file instead of failing this test.
+    const mod = (await import('../../src/cli/args.js')) as unknown as Record<string, unknown>;
+    expect(mod.FORMATS, 'src/cli/args.ts must export FORMATS').toBeDefined();
+    expect(mod.FORMATS).toEqual(['text', 'json', 'html', 'svg', 'png', 'pdf']);
+  });
+});

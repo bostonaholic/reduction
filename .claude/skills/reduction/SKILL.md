@@ -23,7 +23,7 @@ so npx would fall through to the public registry.
 ## Invoke
 
 ```sh
-node dist/cli.mjs '<url>' [--format text|json|html]
+node dist/cli.mjs '<url>' [--format text|json|html|svg]
 ```
 
 (`reduction '<url>'` also works if the user has run `npm link`.)
@@ -39,6 +39,9 @@ outright any URL that contains a single quote (`'`) — do not try to escape it.
   process the result programmatically.
 - `--format html` — the same markup the extension renders, unstyled
   without the extension's `overlay.css`.
+- `--format svg` — the extension's diagram as a standalone SVG image;
+  redirect it to a file (`> out.svg`). The confidence note arrives on
+  stderr, never inside the artifact.
 
 ## The Claude tier
 
