@@ -14,6 +14,10 @@ const BORDER = '#3d8b40';
 const TEXT = '#16211a';
 const PAD = 10;
 
+// The attribution band below the frame: the source URL in muted small text.
+const BAND_FONT = 12;
+const BAND_COLOR = '#6b7268';
+
 interface Line {
   text: string;
   x: number;
@@ -63,6 +67,26 @@ function wrap(text: string, maxWidth: number, width: (s: string) => number): str
   }
   lines.push(line);
   return lines;
+}
+
+/**
+ * Trim text to fit maxWidth, appending an ellipsis when anything was cut.
+ * The width function is injected (the real one needs a canvas) so this
+ * stays testable without a DOM — same style as wrap() above.
+ */
+export function truncateToWidth(
+  text: string,
+  maxWidth: number,
+  width: (s: string) => number,
+): string {
+  if (!text) return '';
+  if (width(text) <= maxWidth) return text;
+
+  for (let end = text.length - 1; end > 0; end--) {
+    const candidate = `${text.slice(0, end)}…`;
+    if (width(candidate) <= maxWidth) return candidate;
+  }
+  return '…';
 }
 
 function readGeometry(table: HTMLTableElement): Geometry {
@@ -147,18 +171,28 @@ export function toSvg(table: HTMLTableElement): string {
 }
 
 /** A 2x PNG for pasting into places that will not take an SVG. */
-export async function toPng(table: HTMLTableElement, scale = 2): Promise<Blob | null> {
+export async function toPng(
+  table: HTMLTableElement,
+  sourceUrl: string,
+  scale = 2,
+): Promise<Blob | null> {
   const geo = readGeometry(table);
+  const url = sourceUrl.trim();
+  // The attribution band extends the output below the frame; the frame
+  // itself keeps the table's own height.
+  const bandHeight = url ? BAND_FONT + PAD * 2 : 0;
+  const outputHeight = geo.height + bandHeight;
+
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(geo.width * scale);
-  canvas.height = Math.ceil(geo.height * scale);
+  canvas.height = Math.ceil(outputHeight * scale);
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
   ctx.scale(scale, scale);
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, geo.width, geo.height);
+  ctx.fillRect(0, 0, geo.width, outputHeight);
 
   ctx.strokeStyle = BORDER;
   ctx.lineWidth = 2;
@@ -178,6 +212,18 @@ export async function toPng(table: HTMLTableElement, scale = 2): Promise<Blob | 
 
   ctx.lineWidth = 3;
   ctx.strokeRect(1.5, 1.5, geo.width - 3, geo.height - 3);
+
+  if (bandHeight > 0) {
+    const bandFont = `${BAND_FONT}px ${getComputedStyle(table).fontFamily}`;
+    ctx.fillStyle = BAND_COLOR;
+    ctx.font = bandFont;
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      truncateToWidth(url, Math.max(geo.width - PAD * 2, 20), measurer(bandFont)),
+      geo.width / 2,
+      geo.height + PAD + BAND_FONT * 0.82,
+    );
+  }
 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }

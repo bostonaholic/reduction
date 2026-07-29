@@ -138,7 +138,7 @@ function showTable(shadow: ShadowRoot, recipe: Recipe, grid: Grid): void {
 
   shadow.querySelector('[data-act="png"]')?.addEventListener('click', async () => {
     if (!table) return;
-    const blob = await toPng(table);
+    const blob = await toPng(table, recipe.sourceUrl);
     if (blob) downloadBlob(`${slug(recipe.title)}.png`, blob);
   });
 

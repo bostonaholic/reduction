@@ -1,0 +1,25 @@
+import { describe, expect, it } from 'vitest';
+import { truncateToWidth } from '../../src/export/image.js';
+
+/** Fake measurer: ten pixels per character, so no canvas is needed. */
+const width = (s: string): number => s.length * 10;
+
+describe('truncateToWidth', () => {
+  it('leaves text that fits unchanged', () => {
+    expect(truncateToWidth('short', 100, width)).toBe('short');
+  });
+
+  it('leaves an exact fit unchanged, with no ellipsis', () => {
+    expect(truncateToWidth('exactly 10', 100, width)).toBe('exactly 10');
+  });
+
+  it('trims a too-wide text and appends an ellipsis so the result fits', () => {
+    const result = truncateToWidth('http://golden.local/a-very-long-path.html', 100, width);
+    expect(result.endsWith('…')).toBe(true);
+    expect(width(result)).toBeLessThanOrEqual(100);
+  });
+
+  it('returns an empty string for empty input', () => {
+    expect(truncateToWidth('', 100, width)).toBe('');
+  });
+});
