@@ -46,7 +46,7 @@ export function printableDocument(recipe: Recipe, grid: Grid, sharedCss: string)
   const source = !url
     ? ''
     : isHttpUrl(url)
-      ? `<a href="${escapeHtml(url)}" rel="noreferrer noopener">${escapeHtml(url)}</a>`
+      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(url)}</a>`
       : escapeHtml(url);
   const servings = recipe.yield ? escapeHtml(recipe.yield) : '';
   const meta = [source, servings].filter(Boolean).join(' · ');

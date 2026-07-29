@@ -191,8 +191,9 @@ export function toSvg(table: HTMLTableElement, sourceUrl: string): string {
       measurer(`${BAND_FONT}px ${style.fontFamily}`),
     );
     const text = `<text x="${(geo.width / 2).toFixed(1)}" y="${(geo.height + PAD + BAND_FONT * 0.82).toFixed(1)}" text-anchor="middle" font-family="${family}" font-size="${BAND_FONT}" fill="${BAND_COLOR}">${escapeXml(truncated)}</text>`;
-    // The link carries the full URL even when the visible text is truncated.
-    parts.push(isHttpUrl(url) ? `<a href="${escapeXml(url)}">${text}</a>` : text);
+    // The href carries the full untruncated URL even when the visible band
+    // text is ellipsised — truncation is presentation, not redaction.
+    parts.push(isHttpUrl(url) ? `<a href="${escapeXml(url)}" rel="noreferrer">${text}</a>` : text);
   }
 
   parts.push('</svg>');

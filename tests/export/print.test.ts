@@ -38,7 +38,7 @@ describe('printableDocument meta line', () => {
     const escaped = 'https://example.test/r?a=1&amp;b=&quot;x&quot;';
     const meta = metaLine(build(recipe({ sourceUrl: 'https://example.test/r?a=1&b="x"' })));
     expect(meta).toBe(
-      `<a href="${escaped}" rel="noreferrer noopener">${escaped}</a> · 12 brownies`,
+      `<a href="${escaped}" target="_blank" rel="noreferrer noopener">${escaped}</a> · 12 brownies`,
     );
   });
 
@@ -48,7 +48,7 @@ describe('printableDocument meta line', () => {
     );
     const escaped = 'https://example.test/r?p=123&amp;recipeId=9';
     expect(meta).toBe(
-      `<a href="${escaped}" rel="noreferrer noopener">${escaped}</a> · 12 brownies`,
+      `<a href="${escaped}" target="_blank" rel="noreferrer noopener">${escaped}</a> · 12 brownies`,
     );
   });
 
@@ -58,7 +58,7 @@ describe('printableDocument meta line', () => {
     );
     const clean = 'https://example.test/r?p=1';
     expect(meta).toBe(
-      `<a href="${clean}" rel="noreferrer noopener">${clean}</a> · 12 brownies`,
+      `<a href="${clean}" target="_blank" rel="noreferrer noopener">${clean}</a> · 12 brownies`,
     );
   });
 
@@ -82,7 +82,7 @@ describe('printableDocument meta line', () => {
   it('shows the url anchor alone when the recipe has no yield', () => {
     const meta = metaLine(build(recipe({ yield: undefined })));
     expect(meta).toBe(
-      '<a href="https://example.test/brownies" rel="noreferrer noopener">https://example.test/brownies</a>',
+      '<a href="https://example.test/brownies" target="_blank" rel="noreferrer noopener">https://example.test/brownies</a>',
     );
   });
 });
