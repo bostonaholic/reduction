@@ -40,6 +40,23 @@ describe('sanitizeSourceUrl', () => {
     );
   });
 
+  it('drops a bare valueless credential parameter and keeps a bare identity one', () => {
+    expect(sanitizeSourceUrl('https://example.test/r?token')).toBe('https://example.test/r');
+    expect(sanitizeSourceUrl('https://example.test/r?p')).toBe('https://example.test/r?p');
+  });
+
+  it('never mistakes a ? inside the fragment for a query — the fragment goes first', () => {
+    expect(sanitizeSourceUrl('https://example.test/r#x?token=SECRET')).toBe(
+      'https://example.test/r',
+    );
+  });
+
+  it('drops every occurrence of a repeated credential parameter', () => {
+    expect(sanitizeSourceUrl('https://example.test/r?token=a&token=b&p=1')).toBe(
+      'https://example.test/r?p=1',
+    );
+  });
+
   it('scrubs a credential behind a legacy ; separator', () => {
     expect(sanitizeSourceUrl('https://example.test/r?p=1;token=SECRET')).toBe(
       'https://example.test/r?p=1',
