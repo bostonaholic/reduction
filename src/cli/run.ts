@@ -148,7 +148,9 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   try {
     raw = extractRecipe(doc);
   } catch (err) {
-    stderr.write(`${err instanceof NoRecipeFound ? err.message : String(err)}\n`);
+    // NoRecipeFound can interpolate a strategy's raw throw message, so the
+    // text is not guaranteed page-free; strip it like any untrusted text.
+    stderr.write(`${stripControls(err instanceof NoRecipeFound ? err.message : String(err))}\n`);
     return 1;
   }
 
@@ -204,7 +206,7 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
           ? `${renderTable(recipe, grid)}\n`
           : renderText(recipe, grid, deps.width);
   } catch (err) {
-    stderr.write(`${(err as Error).message ?? err}\n`);
+    stderr.write(`${stripControls((err as Error).message ?? String(err))}\n`);
     return 1;
   }
   stdout.write(output);
