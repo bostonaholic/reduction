@@ -125,6 +125,26 @@ describe('run happy path', () => {
     expect(typeof parsed.note.text).toBe('string');
   });
 
+  it('prints a box-drawing table at the injected width for the default text format', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'text', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    expect(stderr.text).toBe('');
+    expect(stdout.text).toContain('Test Brownies');
+    expect(stdout.text).toContain('│'); // A table, not JSON or HTML.
+    expect(stdout.text).not.toContain('<table');
+
+    // The rendering width comes from deps, not a hardcoded constant: the
+    // same recipe squeezed into a narrower terminal wraps differently.
+    const narrow = makeDeps(fetchPage);
+    narrow.deps.width = 40;
+    await run({ url: PAGE_URL, format: 'text', claude: false }, narrow.deps);
+    expect(narrow.stdout.text).not.toBe(stdout.text);
+  });
+
   it('prints the renderTable fragment for --format html and exits 0', async () => {
     const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
     const { deps, stdout, stderr } = makeDeps(fetchPage);
