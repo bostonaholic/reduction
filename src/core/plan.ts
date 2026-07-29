@@ -8,6 +8,7 @@
  * testable without a network call.
  */
 
+import { plainText } from './extract.js';
 import { parseIngredient } from './ingredient.js';
 import type { RawRecipe, Recipe, RecipeNode } from './types.js';
 
@@ -102,9 +103,11 @@ export function treeFromPlan(plan: Plan, raw: RawRecipe, sourceUrl: string): Rec
       children.push(ingredientNodes[ref]);
     }
 
+    // Model JSON is remote text and lands in cell text in every output
+    // format, so it takes the same control-character strip as page text.
     built.push(
       children.length > 0
-        ? { kind: 'op', label: step.label.trim() || 'prepare', children, sourceStep: index }
+        ? { kind: 'op', label: plainText(step.label) || 'prepare', children, sourceStep: index }
         : null,
     );
   });
@@ -129,7 +132,7 @@ export function treeFromPlan(plan: Plan, raw: RawRecipe, sourceUrl: string): Rec
   const matched = claimedIngredients.size;
   return {
     title: raw.title,
-    banners: plan.banners.map((b) => b.trim()).filter(Boolean),
+    banners: plan.banners.map((b) => plainText(b)).filter(Boolean),
     root,
     yield: raw.yield,
     sourceUrl,
