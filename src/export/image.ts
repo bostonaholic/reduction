@@ -12,6 +12,8 @@
  * foreignObject taints a canvas, so neither shortcut is available.
  */
 
+import { isHttpUrl, sanitizeSourceUrl } from './source-url.js';
+
 const BORDER = '#3d8b40';
 const TEXT = '#16211a';
 const PAD = 10;
@@ -135,25 +137,6 @@ function readGeometry(table: HTMLTableElement): Geometry {
   return { width: tableRect.width, height: tableRect.height, font, fontSize, boxes };
 }
 
-/**
- * Drop any #fragment — never needed to reach a page, and often a token
- * carrier. Exported for tests, like truncateToWidth above.
- */
-export function stripFragment(value: string): string {
-  const hash = value.indexOf('#');
-  return hash === -1 ? value : value.slice(0, hash);
-}
-
-/** Only http(s) URLs earn a link — anything else stays inert text. */
-function isHttpUrl(value: string): boolean {
-  try {
-    const protocol = new URL(value).protocol;
-    return protocol === 'http:' || protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
 function escapeXml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -171,7 +154,7 @@ export function toSvg(table: HTMLTableElement, sourceUrl: string): string {
   const geo = readGeometry(table);
   const style = getComputedStyle(table);
   const family = escapeXml(style.fontFamily);
-  const url = stripFragment(sourceUrl.trim());
+  const url = sanitizeSourceUrl(sourceUrl);
   // The attribution band extends the output below the frame; the frame
   // itself keeps the table's own height.
   const bandHeight = url ? BAND_FONT + PAD * 2 : 0;
@@ -227,7 +210,7 @@ export async function toPng(
   scale = 2,
 ): Promise<Blob | null> {
   const geo = readGeometry(table);
-  const url = stripFragment(sourceUrl.trim());
+  const url = sanitizeSourceUrl(sourceUrl);
   // The attribution band extends the output below the frame; the frame
   // itself keeps the table's own height.
   const bandHeight = url ? BAND_FONT + PAD * 2 : 0;

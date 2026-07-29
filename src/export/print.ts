@@ -9,6 +9,7 @@
 
 import { layout } from '../core/layout.js';
 import { escapeHtml, renderTable } from '../core/render.js';
+import { isHttpUrl, sanitizeSourceUrl } from './source-url.js';
 import type { Grid, Recipe } from '../core/types.js';
 
 const PRINT_CSS = `
@@ -39,25 +40,9 @@ const PRINT_CSS = `
   }
 `;
 
-/** Only http(s) URLs earn an anchor — anything else stays inert text. */
-function isHttpUrl(value: string): boolean {
-  try {
-    const protocol = new URL(value).protocol;
-    return protocol === 'http:' || protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-/** Drop any #fragment — never needed to reach a page, and often a token carrier. */
-function stripFragment(value: string): string {
-  const hash = value.indexOf('#');
-  return hash === -1 ? value : value.slice(0, hash);
-}
-
 /** A complete HTML document for the print tab. */
 export function printableDocument(recipe: Recipe, grid: Grid, sharedCss: string): string {
-  const url = stripFragment(recipe.sourceUrl.trim());
+  const url = sanitizeSourceUrl(recipe.sourceUrl);
   const source = !url
     ? ''
     : isHttpUrl(url)
