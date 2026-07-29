@@ -23,13 +23,23 @@ import { parseIngredient, headNoun, searchPhrases, singularize } from './ingredi
 import { toCelsius } from './units.js';
 import type { Ingredient, RawRecipe, Recipe, RecipeNode } from './types.js';
 
+/** Somewhere a new instruction can start: the text, a sentence, or a clause. */
+const IMPERATIVE = String.raw`(?:^|[.;:,]\s*|\b(?:and|then)\s+)(?:lightly\s+|generously\s+|well\s+|thoroughly\s+)?`;
+
 /** Steps that only ready the kitchen. Checked before ingredient matching, so
- *  "butter and flour an 8x8-in pan" does not eat the butter and the flour. */
+ *  "butter and flour an 8x8-in pan" does not eat the butter and the flour.
+ *
+ *  Greasing words double as ingredients, so they only count as prep when they
+ *  sit where a command starts. Otherwise "Heat olive oil in a skillet" reads as
+ *  "oil the skillet" and the step that browns the beef becomes a banner row. */
 const PREP_PATTERNS = [
   /\bpreheat\b/i,
   /\bpre-heat\b/i,
   /\bposition\b.{0,20}\brack\b/i,
-  /\b(grease|butter|flour|spray|oil|line)\b.{0,40}\b(pan|tin|sheet|dish|tray|mould|mold|skillet|ramekin|pot)\b/i,
+  new RegExp(
+    `${IMPERATIVE}(grease|butter|flour|spray|oil|line)\\b.{0,40}\\b(pan|tin|sheet|dish|tray|mould|mold|skillet|ramekin|pot)\\b`,
+    'i',
+  ),
   /\bline\b.{0,30}\b(parchment|baking paper|foil)\b/i,
   /\b(prepare|set up|ready)\b.{0,20}\b(pan|tin|sheet|dish|grill|oven|steamer|station)\b/i,
   /\bbring\b.{0,20}\bto room temperature\b/i,
@@ -40,8 +50,36 @@ const ANAPHORA =
   /\b(the |your |this )?(mixture|batter|dough|sauce|filling|frosting|glaze|marinade|paste|purée|puree|dressing|custard|syrup|caramel|roux|slurry|dry ingredients|wet ingredients|flour mixture|butter mixture|egg mixture|sugar mixture|creamed mixture|chocolate mixture)\b/i;
 
 /** Verbs whose object is implicitly the work in progress. */
-const ADDITIVE =
-  /\b(add|stir in|mix in|fold in|whisk in|beat in|pour in|pour into|stir into|fold into|mix into|combine|incorporate|blend in|transfer|return|top with|sprinkle over|spread over|layer)\b/i;
+const ADDITIVE = new RegExp(
+  String.raw`\b(add|stir in|mix in|fold in|whisk in|beat in|pour in|pour into|stir into|fold into|mix into|combine|incorporate|blend in|transfer|return|top with|sprinkle over|spread over)\b` +
+    // "layer" is a noun at least as often as a verb, and "spread the strips
+    // over a sheet in a single layer" is describing the sheet, not adding to
+    // anything, so it only counts where a command starts.
+    `|${IMPERATIVE}layer\\b`,
+  'i',
+);
+
+/**
+ * Verbs that park a component until the final assembly rather than transform
+ * it. "Refrigerate until ready to use" means set the sauce aside, not fold it
+ * into whatever goes on the stove next — so a parked branch waits for the last
+ * step or for a step that names it again.
+ */
+const HOLD = new Set(['refrigerate', 'chill', 'freeze']);
+
+/** How long a step says it takes, if it says. */
+const DURATION =
+  /(\d+)\s*(?:(?:to|-|–|—)\s*(\d+)\s*)?(minutes?|mins?|hours?|hrs?|seconds?|secs?)\b/i;
+
+/** Does this verb phrase only park the work? */
+function isHoldPhrase(phrase: string): boolean {
+  return phrase.split(/\s+/).some((word) => HOLD.has(word));
+}
+
+/** Does this step put its output away to wait for the assembly? */
+function parksOutput(text: string): boolean {
+  return [...text.matchAll(VERB_PATTERN_ALL)].some((m) => isHoldPhrase(m[1].toLowerCase()));
+}
 
 /** Verbs that end a preparation and therefore sweep up everything pending. */
 const TERMINAL = new Set([
@@ -68,7 +106,6 @@ const VERBS = [
 ];
 
 const VERB_SOURCE = `\\b(${VERBS.map((v) => v.replace(/\s/g, '\\s+')).join('|')})\\b`;
-const VERB_PATTERN = new RegExp(VERB_SOURCE, 'i');
 const VERB_PATTERN_ALL = new RegExp(VERB_SOURCE, 'gi');
 
 /** Does this verb phrase end a preparation? "let cool" counts, via "cool". */
@@ -118,10 +155,15 @@ export function stepLabel(text: string): string {
   const found = [...text.matchAll(VERB_PATTERN_ALL)].map((m) =>
     m[1].toLowerCase().replace(/\s+/g, ' '),
   );
-  const verbMatch = VERB_PATTERN.exec(text);
-  let label =
-    found.find(isTerminalPhrase) ??
-    (verbMatch ? verbMatch[1].toLowerCase().replace(/\s+/g, ' ') : 'prepare');
+
+  // Except when that verb is only a hold. "Refrigerate until ready to use" is
+  // an aside about where the sauce waits; the mix before it is what the cell
+  // should say. A hold that states its own duration is the step, and stays.
+  const statesDuration = DURATION.test(text);
+  const doing = found.filter((phrase) => !isHoldPhrase(phrase));
+  const pool = statesDuration || doing.length === 0 ? found : doing;
+
+  let label = pool.find(isTerminalPhrase) ?? pool[0] ?? 'prepare';
 
   // "mix together" and "whisk together" read better without the adverb.
   label = label.replace(/\s+together$/, '');
@@ -137,7 +179,7 @@ export function stepLabel(text: string): string {
     parts.push(`${Number(celsius[1])}°C`);
   }
 
-  const time = /(\d+)\s*(?:(?:to|-|–|—)\s*(\d+)\s*)?(minutes?|mins?|hours?|hrs?|seconds?|secs?)\b/i.exec(text);
+  const time = DURATION.exec(text);
   if (time) {
     const unit = /^h/i.test(time[3]) ? 'hr' : /^s/i.test(time[3]) ? 'sec' : 'min';
     parts.push(time[2] ? `${time[1]} to ${time[2]} ${unit}` : `${time[1]} ${unit}`);
@@ -250,6 +292,9 @@ export function inferTree(raw: RawRecipe, sourceUrl: string): Recipe {
   const matchers = buildMatchers(raw.ingredientLines);
   const banners: string[] = [];
   const pending: RecipeNode[] = [];
+  // Read off the step text, not off the label: a step can put its output away
+  // ("Refrigerate until ready to use") while the cell rightly names the mix.
+  const parked = new Set<RecipeNode>();
 
   const steps = raw.stepTexts.map((text, index) => ({ text, index }));
 
@@ -272,30 +317,40 @@ export function inferTree(raw: RawRecipe, sourceUrl: string): Recipe {
 
     let consumed: RecipeNode[] = [];
     if (pending.length > 0) {
+      // A step that names an ingredient again is pointing at the operation
+      // that already holds it — take that one, not just the most recent.
+      const revisitedPending = pending.filter((node) => {
+        const leaves = leavesOf(node);
+        return revisited.some((leaf) => leaves.has(leaf));
+      });
+
+      // A branch left in the fridge waits for the assembly rather than joining
+      // whatever goes on the stove next — but only while the step has somewhere
+      // else to turn. "Chill the dough, then bake it" leaves nothing else to
+      // bake, so the chilled dough is still what the oven gets.
+      const parkedWaits = !isLast && (fresh.length > 0 || pending.some((n) => !parked.has(n)));
+      const available = parkedWaits
+        ? pending.filter((node) => !parked.has(node) || revisitedPending.includes(node))
+        : [...pending];
+
       const sweepsAll =
         isLast ||
-        TERMINAL.has(verb) ||
+        // A terminal verb ends whatever is in progress — but only when the step
+        // is continuing earlier work. One that brings its own ingredients and
+        // never refers back ("warm the pita bread") starts a branch of its own.
+        (TERMINAL.has(verb) && referencesPrior) ||
         // A merge step: talks about earlier work, brings nothing new, and there
         // is more than one loose end to tie together.
         (referencesPrior && fresh.length === 0 && pending.length >= 2);
 
       if (sweepsAll) {
-        consumed = pending.splice(0, pending.length);
-      } else {
-        // A step that names an ingredient again is pointing at the operation
-        // that already holds it — take that one, not just the most recent.
-        const revisitedPending = pending.filter((node) => {
-          const leaves = leavesOf(node);
-          return revisited.some((leaf) => leaves.has(leaf));
-        });
-
-        if (revisitedPending.length > 0) {
-          consumed = revisitedPending;
-          for (const node of revisitedPending) pending.splice(pending.indexOf(node), 1);
-        } else if (referencesPrior) {
-          consumed = [pending.pop()!];
-        }
+        consumed = available;
+      } else if (revisitedPending.length > 0) {
+        consumed = revisitedPending;
+      } else if (referencesPrior && available.length > 0) {
+        consumed = [available[available.length - 1]];
       }
+      for (const node of consumed) pending.splice(pending.indexOf(node), 1);
     }
 
     // Prior work first, then new ingredients — this is what keeps the melted
@@ -307,7 +362,9 @@ export function inferTree(raw: RawRecipe, sourceUrl: string): Recipe {
       continue;
     }
 
-    pending.push({ kind: 'op', label, children: inputs, sourceStep: step.index });
+    const op: RecipeNode = { kind: 'op', label, children: inputs, sourceStep: step.index };
+    if (parksOutput(step.text)) parked.add(op);
+    pending.push(op);
   }
 
   // Any ingredient no step mentioned still deserves a row. Hang them off the
