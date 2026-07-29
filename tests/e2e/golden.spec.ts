@@ -27,7 +27,6 @@
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -52,7 +51,19 @@ const FIXTURES: Fixture[] = [
 
 /** Load the fixture, run the real content-script bundle, wait for the table. */
 async function render(page: Page, bundle: string, name: string): Promise<void> {
-  await page.goto(pathToFileURL(join(PAGES, `${name}.html`)).href);
+  // A routed http origin keeps location.href — and everything derived from
+  // it, like the export attribution — identical on every machine. The
+  // handler reads the fixture from the request path, so re-registering it
+  // for the same page just stacks equivalent handlers.
+  await page.route('http://golden.local/*', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    await route.fulfill({
+      contentType: 'text/html',
+      body: await readFile(join(PAGES, pathname), 'utf8'),
+    });
+  });
+  await page.goto(`http://golden.local/${name}.html`);
+  expect(page.url()).toBe(`http://golden.local/${name}.html`);
   await page.evaluate(bundle);
   await page.waitForFunction(() => {
     const host = document.getElementById('reduction-overlay-host');
