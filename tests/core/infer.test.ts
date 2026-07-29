@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inferTree } from '../../src/core/infer.js';
+import { inferTree, stepLabel } from '../../src/core/infer.js';
 import type { RawRecipe, Recipe, RecipeNode } from '../../src/core/types.js';
 
 /**
@@ -86,6 +86,26 @@ describe('inferTree — parallel branches that meet at assembly', () => {
 
   it('keeps the step that browns the beef as an operation, not a banner row', () => {
     expect(recipe.banners).toEqual([]);
+  });
+
+  it('names the sauce step for what it does, not for the hold at the end', () => {
+    expect(opsOver(recipe, 'Greek yogurt')).toContain('mix');
+  });
+
+  it('seasons the beef with the salt and pepper rather than orphaning the line', () => {
+    expect(opsOver(recipe, 'Salt and black pepper')).toContain('cook 2 min');
+  });
+});
+
+describe('stepLabel', () => {
+  it('prefers the transformation over a hold with no stated duration', () => {
+    expect(
+      stepLabel('In a bowl, mix the yogurt and garlic to make the sauce. Refrigerate until ready to use.'),
+    ).toBe('mix');
+  });
+
+  it('keeps a hold that states its own duration — that is the step', () => {
+    expect(stepLabel('Cover and refrigerate the dough for at least 2 hours.')).toBe('refrigerate 2 hr');
   });
 });
 
