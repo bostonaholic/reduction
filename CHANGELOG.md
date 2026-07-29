@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Badge cards whose self-check finds a structural or faithfulness problem as
+  "low" confidence, naming the finding — coverage alone no longer decides the
+  badge. (#N)
+
 ### Added
 
 - Include the recipe's URL in the generated recipe card. (#9)

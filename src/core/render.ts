@@ -7,6 +7,9 @@
  */
 
 import { cellsByRow } from './layout.js';
+// Type-only: print.ts imports this module, and a value import would pull the
+// grader into the print/export bundles.
+import type { Finding } from './grade.js';
 import type { Grid, Recipe } from './types.js';
 
 export function escapeHtml(text: string): string {
@@ -41,8 +44,14 @@ export function renderTable(recipe: Recipe, grid: Grid): string {
   return `<table class="rd-table">${caption}<tbody>${rows}</tbody></table>`;
 }
 
+/** Longest finding detail the note will quote before cutting it short. */
+const MAX_DETAIL = 120;
+
 /** How the parse went, in one honest sentence. */
-export function confidenceNote(recipe: Recipe): { level: 'high' | 'moderate' | 'low'; text: string } {
+export function confidenceNote(
+  recipe: Recipe,
+  findings: Finding[] = [],
+): { level: 'high' | 'moderate' | 'low'; text: string } {
   const percent = Math.round(recipe.confidence * 100);
   const via =
     recipe.inference === 'claude'
@@ -50,6 +59,15 @@ export function confidenceNote(recipe: Recipe): { level: 'high' | 'moderate' | '
       : recipe.inference === 'flat'
         ? 'Steps could not be grouped, so they are listed in order'
         : 'Groupings inferred locally';
+
+  // A known structural or faithfulness problem outranks coverage — and the
+  // flat message below, which would otherwise hide it.
+  if (findings.length > 0) {
+    const detail = findings[0].detail;
+    const quoted = detail.length > MAX_DETAIL ? `${detail.slice(0, MAX_DETAIL)}…` : detail;
+    const problems = findings.length === 1 ? 'a problem' : `${findings.length} problems`;
+    return { level: 'low', text: `${via}, but a self-check found ${problems}: ${quoted}` };
+  }
 
   if (recipe.inference === 'flat') return { level: 'low', text: `${via}.` };
   if (recipe.confidence >= 0.85) {
