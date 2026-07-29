@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Show the recipe's source URL on the printed card (as a link) and on exported
+  PNG and SVG images (as a muted attribution band, clickable on SVG). The URL
+  is shown without its fragment, and common credential-shaped query parameters
+  are dropped before it is shown or linked; the rest of the query is preserved
+  so the link still reaches the recipe.
+
 ## [0.1.0] - 2026-07-29
 
 ### Added

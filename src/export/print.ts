@@ -9,6 +9,7 @@
 
 import { layout } from '../core/layout.js';
 import { escapeHtml, renderTable } from '../core/render.js';
+import { isHttpUrl, sanitizeSourceUrl } from './source-url.js';
 import type { Grid, Recipe } from '../core/types.js';
 
 const PRINT_CSS = `
@@ -27,6 +28,7 @@ const PRINT_CSS = `
     font-size: 12.5px;
     color: #6b7268;
     margin: 0 0 18px;
+    overflow-wrap: anywhere;
   }
   .rd-doc-meta a { color: #3d6b3f; }
   .rd-caption { display: none; }
@@ -40,7 +42,14 @@ const PRINT_CSS = `
 
 /** A complete HTML document for the print tab. */
 export function printableDocument(recipe: Recipe, grid: Grid, sharedCss: string): string {
-  const servings = recipe.yield ? ` · ${escapeHtml(recipe.yield)}` : '';
+  const url = sanitizeSourceUrl(recipe.sourceUrl);
+  const source = !url
+    ? ''
+    : isHttpUrl(url)
+      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(url)}</a>`
+      : escapeHtml(url);
+  const servings = recipe.yield ? escapeHtml(recipe.yield) : '';
+  const meta = [source, servings].filter(Boolean).join(' · ');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -51,7 +60,7 @@ export function printableDocument(recipe: Recipe, grid: Grid, sharedCss: string)
 </head>
 <body>
 <h1 class="rd-doc-title">${escapeHtml(recipe.title)}</h1>
-<p class="rd-doc-meta">${escapeHtml(new URL(recipe.sourceUrl).hostname)}${servings}</p>
+<p class="rd-doc-meta">${meta}</p>
 ${renderTable(recipe, grid)}
 </body>
 </html>`;

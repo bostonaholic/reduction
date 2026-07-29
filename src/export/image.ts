@@ -4,15 +4,29 @@
  * Rather than re-implementing table layout, we read the geometry the browser
  * already computed for the rendered table and redraw it. Text is re-wrapped
  * with canvas measurements against each cell's real content width, which keeps
- * the export faithful without needing a layout engine of our own.
+ * the export faithful without needing a layout engine of our own. Below the
+ * table, both renderers draw an attribution band carrying the recipe's source
+ * URL, truncated to the table's width.
  *
  * No external libraries: Manifest V3 forbids remote code, and an SVG with a
  * foreignObject taints a canvas, so neither shortcut is available.
  */
 
+import { isHttpUrl, sanitizeSourceUrl } from './source-url.js';
+
 const BORDER = '#3d8b40';
 const TEXT = '#16211a';
 const PAD = 10;
+
+// The attribution band below the frame: the source URL in muted small text.
+const BAND_FONT = 12;
+const BAND_COLOR = '#6b7268';
+// Cap on the characters fed to truncateToWidth, which measures O(n) prefixes:
+// a page-controlled URL of unbounded length (history.pushState) could
+// otherwise hang the export click. A band wide enough to fit this many
+// characters would show a cut that looks complete, so the cut carries its
+// own ellipsis (clampBandText below).
+const BAND_TEXT_MAX = 300;
 
 interface Line {
   text: string;
@@ -65,6 +79,31 @@ function wrap(text: string, maxWidth: number, width: (s: string) => number): str
   return lines;
 }
 
+/**
+ * Trim text to fit maxWidth, appending an ellipsis when anything was cut.
+ * The width function is injected (the real one needs a canvas) so this
+ * stays testable without a DOM — same style as wrap() above.
+ */
+export function truncateToWidth(
+  text: string,
+  maxWidth: number,
+  width: (s: string) => number,
+): string {
+  if (!text) return '';
+  if (width(text) <= maxWidth) return text;
+
+  for (let end = text.length - 1; end > 0; end--) {
+    const candidate = `${text.slice(0, end)}…`;
+    if (width(candidate) <= maxWidth) return candidate;
+  }
+  return '…';
+}
+
+/** Bound the band text before it is measured; a real cut is never silent. */
+function clampBandText(url: string): string {
+  return url.length > BAND_TEXT_MAX ? `${url.slice(0, BAND_TEXT_MAX)}…` : url;
+}
+
 function readGeometry(table: HTMLTableElement): Geometry {
   const tableRect = table.getBoundingClientRect();
   const style = getComputedStyle(table);
@@ -113,14 +152,23 @@ function escapeXml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** A standalone SVG of the table — scalable, tiny, and text stays selectable. */
-export function toSvg(table: HTMLTableElement): string {
+/**
+ * A standalone SVG of the table — scalable, tiny, and text stays selectable.
+ * A non-blank sourceUrl is drawn in an attribution band below the table and,
+ * when it is an http(s) URL, wrapped in a link.
+ */
+export function toSvg(table: HTMLTableElement, sourceUrl: string): string {
   const geo = readGeometry(table);
   const style = getComputedStyle(table);
   const family = escapeXml(style.fontFamily);
+  const url = sanitizeSourceUrl(sourceUrl);
+  // The attribution band extends the output below the frame; the frame
+  // itself keeps the table's own height.
+  const bandHeight = url ? BAND_FONT + PAD * 2 : 0;
+  const outputHeight = Math.ceil(geo.height + bandHeight);
 
   const parts: string[] = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(geo.width)}" height="${Math.ceil(geo.height)}" viewBox="0 0 ${Math.ceil(geo.width)} ${Math.ceil(geo.height)}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(geo.width)}" height="${outputHeight}" viewBox="0 0 ${Math.ceil(geo.width)} ${outputHeight}">`,
     `<rect width="100%" height="100%" fill="#ffffff"/>`,
   ];
 
@@ -142,23 +190,50 @@ export function toSvg(table: HTMLTableElement): string {
   parts.push(
     `<rect x="1.5" y="1.5" width="${(geo.width - 3).toFixed(1)}" height="${(geo.height - 3).toFixed(1)}" fill="none" stroke="${BORDER}" stroke-width="3"/>`,
   );
+
+  if (bandHeight > 0) {
+    const truncated = truncateToWidth(
+      clampBandText(url),
+      Math.max(geo.width - PAD * 2, 20),
+      measurer(`${BAND_FONT}px ${style.fontFamily}`),
+    );
+    const text = `<text x="${(geo.width / 2).toFixed(1)}" y="${(geo.height + PAD + BAND_FONT * 0.82).toFixed(1)}" text-anchor="middle" font-family="${family}" font-size="${BAND_FONT}" fill="${BAND_COLOR}">${escapeXml(truncated)}</text>`;
+    // The href carries the full untruncated URL even when the visible band
+    // text is ellipsised — truncation is presentation, not redaction.
+    parts.push(isHttpUrl(url) ? `<a href="${escapeXml(url)}" rel="noreferrer">${text}</a>` : text);
+  }
+
   parts.push('</svg>');
   return parts.join('\n');
 }
 
-/** A 2x PNG for pasting into places that will not take an SVG. */
-export async function toPng(table: HTMLTableElement, scale = 2): Promise<Blob | null> {
+/**
+ * A 2x PNG for pasting into places that will not take an SVG. A non-blank
+ * sourceUrl is drawn in an attribution band below the table — raster output,
+ * so text only, no link.
+ */
+export async function toPng(
+  table: HTMLTableElement,
+  sourceUrl: string,
+  scale = 2,
+): Promise<Blob | null> {
   const geo = readGeometry(table);
+  const url = sanitizeSourceUrl(sourceUrl);
+  // The attribution band extends the output below the frame; the frame
+  // itself keeps the table's own height.
+  const bandHeight = url ? BAND_FONT + PAD * 2 : 0;
+  const outputHeight = geo.height + bandHeight;
+
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(geo.width * scale);
-  canvas.height = Math.ceil(geo.height * scale);
+  canvas.height = Math.ceil(outputHeight * scale);
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
   ctx.scale(scale, scale);
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, geo.width, geo.height);
+  ctx.fillRect(0, 0, geo.width, outputHeight);
 
   ctx.strokeStyle = BORDER;
   ctx.lineWidth = 2;
@@ -178,6 +253,18 @@ export async function toPng(table: HTMLTableElement, scale = 2): Promise<Blob | 
 
   ctx.lineWidth = 3;
   ctx.strokeRect(1.5, 1.5, geo.width - 3, geo.height - 3);
+
+  if (bandHeight > 0) {
+    const bandFont = `${BAND_FONT}px ${getComputedStyle(table).fontFamily}`;
+    ctx.fillStyle = BAND_COLOR;
+    ctx.font = bandFont;
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      truncateToWidth(clampBandText(url), Math.max(geo.width - PAD * 2, 20), measurer(bandFont)),
+      geo.width / 2,
+      geo.height + PAD + BAND_FONT * 0.82,
+    );
+  }
 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }

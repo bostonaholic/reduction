@@ -133,12 +133,12 @@ function showTable(shadow: ShadowRoot, recipe: Recipe, grid: Grid): void {
   });
 
   shadow.querySelector('[data-act="svg"]')?.addEventListener('click', () => {
-    if (table) download(`${slug(recipe.title)}.svg`, toSvg(table), 'image/svg+xml');
+    if (table) download(`${slug(recipe.title)}.svg`, toSvg(table, recipe.sourceUrl), 'image/svg+xml');
   });
 
   shadow.querySelector('[data-act="png"]')?.addEventListener('click', async () => {
     if (!table) return;
-    const blob = await toPng(table);
+    const blob = await toPng(table, recipe.sourceUrl);
     if (blob) downloadBlob(`${slug(recipe.title)}.png`, blob);
   });
 
