@@ -20,7 +20,13 @@ const CREDENTIAL_PARAMS = new Set([
   'unlocked_article_code',
 ]);
 
-/** Drop any #fragment — never needed to reach a page, and often a token carrier. */
+/**
+ * Drop any #fragment. A weighed trade: fragments are where the highest-value
+ * tokens land (OAuth implicit-flow #access_token), which makes the strip
+ * worth its one accepted loss — hash-routed SPAs (https://site/#/recipes/123)
+ * lose their deep link. Recipe sites live on SEO, and SEO means crawlable
+ * non-fragment URLs, so that class is all but empty here.
+ */
 function stripFragment(value: string): string {
   const hash = value.indexOf('#');
   return hash === -1 ? value : value.slice(0, hash);
