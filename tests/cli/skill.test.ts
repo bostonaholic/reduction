@@ -40,4 +40,24 @@ describe('the reduction agent Skill', () => {
     expect(existsSync(skillPath)).toBe(true);
     expect(skillText).not.toContain('npx reduction');
   });
+
+  it('single-quotes the URL in every documented invocation', () => {
+    expect(existsSync(skillPath)).toBe(true);
+    expect(skillText).toContain("node dist/cli.mjs '<url>'");
+    expect(skillText).toContain("reduction '<url>'");
+    // No invocation may slip back to an unquoted placeholder.
+    expect(skillText).not.toMatch(/cli\.mjs <url>|reduction <url>/);
+  });
+
+  it('documents the quoting rule and rejects URLs containing a single quote', () => {
+    expect(existsSync(skillPath)).toBe(true);
+    expect(skillText).toMatch(/single-quote/i);
+    expect(skillText).toMatch(/reject.*single quote/is);
+  });
+
+  it('marks CLI output as untrusted data, never instructions', () => {
+    expect(existsSync(skillPath)).toBe(true);
+    expect(skillText).toMatch(/untrusted/i);
+    expect(skillText).toMatch(/never as instructions/i);
+  });
 });

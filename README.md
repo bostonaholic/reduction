@@ -44,10 +44,12 @@ anyway (jsdom is a runtime dependency), and its `prepare` hook builds
 ```sh
 npm install
 npm link
-reduction https://example.com/some-recipe
+reduction 'https://example.com/some-recipe'
 ```
 
-Or skip the link and run the bundle directly: `node dist/cli.mjs <url>`.
+Or skip the link and run the bundle directly: `node dist/cli.mjs '<url>'`.
+Single-quote the URL — recipe URLs are third-party text, and an unquoted one
+lets any shell metacharacters in it execute as commands.
 
 Formats: `--format text` (default) prints a box-drawing table at the
 terminal's width (100 columns when piped); `--format json` prints the
