@@ -42,15 +42,13 @@ Four grader behaviours are load-bearing for this design:
 - **The `skip` filter is applied after the short-circuit check** (`:610`
   computes `unusable`, `:615` filters). `skip: ['S1']` on a rootless card
   yields a grade indistinguishable from clean.
-- **The F tier is blind to sparseness, at every coverage level.** F3 stays
-  clean with an op per source step (`:369-379`); root children are exempt
-  from F7 (`:452`); unclaimed ingredients are appended, keeping F1/F2 clean
-  (`docs/recipe-card-rules.md:233-235`; `src/core/plan.ts:120-127` does not
-  count appended orphans as matched). A card with most ingredients hanging
-  off the root can grade F-clean — and a near-flat card is low-coverage *by
-  definition*, so F-clean near-flat cards live precisely in the low-coverage
-  region. Any guard against them must therefore hold there, not only where
-  coverage is high.
+- **The F tier is blind to sparseness.** F3 stays clean with an op per
+  source step (`:369-379`); root children are exempt from F7 (`:452`);
+  unclaimed ingredients are appended, keeping F1/F2 clean
+  (`docs/recipe-card-rules.md:233-235`). A card with most ingredients
+  hanging off the root can grade F-clean at *any* confidence — orphan rate
+  is L7. Coverage is the only signal that sees sparseness, and sparseness
+  is continuous: no single cutoff point encodes it.
 
 Also load-bearing: several F rules emit one finding per offending pair —
 F7 per (op, child) (`:451-465`), F3 per uncited step (`:369-379`), F5 per
@@ -62,12 +60,6 @@ The badge (`confidenceNote`, `src/core/render.ts:44-65`) reads only
 `recipe.inference` and `recipe.confidence`; a card that fails F6 at 79%
 coverage displays "moderate confidence".
 
-The two confidence constructors are commensurable — verified in review:
-`buildMatchers` maps 1:1 over ingredient lines with no filtering, and
-`treeFromPlan` maps the same array (`src/core/plan.ts:75`); both numerators
-exclude root-appended orphans. A rule on their ratio compares like with
-like.
-
 ## Desired end state
 
 1. A local card with any S or F finding escalates to Claude even at ≥ 0.6
@@ -75,10 +67,9 @@ like.
 2. When two candidates exist: a rooted card always beats a rootless one
    (checked in one authoritative place); a fully-graded card beats one whose
    grade was cut short; among fully-graded cards, no-S beats any-S; fewer
-   *distinct failed F rules* wins — but only for a card that **retains at
-   least three-quarters of its rival's coverage**, a proportion, so the
-   guard tightens exactly where near-flat cards live; confidence settles
-   everything else.
+   *distinct failed F rules* wins — but never for a card **materially
+   sparser** than its rival, where "materially" is a named constant, not a
+   band boundary; confidence settles everything else.
 3. Still at most one Claude call per `run()`, each following an explicit
    toolbar click.
 4. A shipped card with residual S/F findings shows a "low confidence" badge
@@ -120,33 +111,30 @@ The escalation *policy*. With `Graded = Record<Tier, Finding[]>`:
 
 - `CLAUDE_THRESHOLD = 0.6` — moves here from `src/content/index.ts:23`,
   comment included.
-- `RETAIN_RATIO = 0.75` — the sparseness guard for step 6: the card that
-  step 6 favours must retain at least this fraction of its rival's
-  coverage. **The constant is chosen, not borrowed, and its doc comment
-  says so.** Selection borrows nothing from `CLAUDE_THRESHOLD` — that
-  constant's documented meaning (`src/content/index.ts:22`) governs display
-  trust and call-spending. A *ratio* rather than an absolute difference,
-  because the maximum achievable difference is bounded by the higher card's
-  own coverage: an absolute gap degenerates in the low-coverage region —
-  every pair becomes automatically in-gap, and that region is exactly where
-  F-clean near-flat cards live (see Current state). The ratio tightens in
-  proportion: at a 1.0 rival the allowed deficit is 0.25 of the recipe; at
-  a 0.2 rival it is 0.05 — one line of a 20-line recipe. **Bounds, argued
-  at both ends of the axis.** High end: the ratio must be **above 0.61**
-  or the 1.00-vs-0.61 mirror pair (hole B) stops resolving as today's code
-  does. Low end (the region the absolute gap left unguarded): 0.20-vs-0.01
-  and 0.25-vs-0.05 (ratios 0.05, 0.20) must stay blocked — any ratio above
-  ~0.67 does that with a wide margin, and the pinned wins demand the ratio
-  sit **at or below 0.769** (the 0.65-vs-0.50 both-weak pair). Every value
-  in [0.68, 0.76] picks the same winner in every pinned real-card
-  scenario; 0.75 — three-quarters — is the round number in that range.
+- `COVERAGE_GAP = 0.2` — the sparseness guard for step 6. **The constant is
+  chosen, not borrowed, and its doc comment says so.** Selection borrows
+  nothing from `CLAUDE_THRESHOLD`: that constant's documented meaning
+  (`src/content/index.ts:22`, "not trustworthy enough to show alone")
+  governs display trust and call-spending, and transferring its authority
+  into selection — the band — is what round 3 rejected. The guard's
+  strength is uniform, 0.2 of coverage at every point on the axis, where
+  the band's varied from ~0 to 0.6 with absolute position. The *bounds* on
+  the value are argued, not invented: it must be **below 0.29** so every
+  pinned mirror pair (deficits 0.29–0.50) resolves as today's code does,
+  and **above ~0.1** so a genuine fix costing about one reattached
+  ingredient line on a typical 10-line recipe can still win — `GAP = 0`
+  (the never-trade rule) fails that lower bound by construction. Every
+  value in [0.15, 0.25] picks the same winner in every pinned scenario;
+  0.2 is the round number in that insensitive range.
 - `EPSILON = 1e-9` — numeric slack for the step-6 boundary, nothing more.
-  Confidence values are ratios of small integers and decimal boundaries
-  are not exactly representable (`0.79 - 0.59 > 0.2` in IEEE 754 — the
-  round-4 finding). The smallest *meaningful* coverage difference is one
+  Confidence values are ratios (`matched / total`), so exact decimal
+  boundaries are essentially never attainable in IEEE 754 — checked:
+  `0.79 - 0.2 === 0.5900000000000001`, so without slack the pinned
+  boundary pair would evaluate the wrong way and "inclusive" would be
+  decorative. The smallest *meaningful* coverage difference is one
   ingredient line — at least `1/50 ≈ 0.02` for any plausible recipe, seven
   orders of magnitude above the slack — so the tolerance can never change
-  a real winner; it exists so a boundary test does not hinge on rounding
+  a real winner; it exists so the boundary does not hinge on rounding
   direction.
 - `shouldEscalate(confidence: number, graded: Graded | null): boolean` —
   true when `confidence < CLAUDE_THRESHOLD`, or when `graded` is non-null
@@ -196,61 +184,76 @@ rule" = today's `viaClaude.confidence >= local.confidence`):
    high-coverage card with one S finding loses to a sparse S-clean card.
    Presence, not count: ranking INVALIDs by count invents a score the
    rulebook refuses.
-6. **Fewer distinct failed F rules wins — guarded by retained coverage.**
+6. **Fewer distinct failed F rules wins — guarded by `COVERAGE_GAP`.**
    Compared as `new Set(F.map(f => f.rule)).size`, which matches §5's
-   per-rule scoring (`docs/recipe-card-rules.md:151`) and is insensitive
-   to how many findings one rule emits per offending pair — raw counts
-   vary with tree shape (Current state) and can disagree with the
+   per-rule scoring (`docs/recipe-card-rules.md:151`) and is insensitive to
+   how many findings one rule emits per offending pair — raw finding counts
+   vary with tree shape (see Current state) and can disagree with the
    rulebook's own order ({F7,F7,F7} counts worse than {F3,F6} but scores
-   better; distinct-rule counting agrees with the score). Equal distinct
-   counts fall through. **The guard, stated precisely enough to code
-   from:** the candidate this step favours is the one with fewer distinct
-   failed F rules; the step is decisive iff
-   `favoured.confidence >= other.confidence * RETAIN_RATIO - EPSILON`;
-   otherwise skip to step 7. The guard is a **proportion of the rival's
-   coverage**, so its strength is uniform in relative terms at every point
-   on the axis — an absolute difference degenerates at low coverage, where
-   the maximum possible difference shrinks below any fixed constant and
-   the guard could never fire (the round-4 hole: 0.20 `{F6}` vs 0.01
-   clean, difference 0.19, would have upgraded to a card with 99% of
-   ingredients on the root; today's code keeps local, and so does this
-   rule — ratio 0.05). It closes every named hole: **(A)** 0.55 `{F6}` vs
-   0.05 clean (ratio 0.09) and **(B)** 1.00 `{F6}` vs 0.61 clean (0.61) →
-   guard skips, local kept, as today. **(round-4)** 0.20-vs-0.01 (0.05)
-   and 0.25-vs-0.05 (0.20) → local, as today. **(D)** 0.61 `{F1..F7}` vs
-   0.59 clean (0.967) → decisive, the truthful card wins — indifferent to
-   which side of any threshold the pair sits on. **(C)** the cliff at the
-   guard boundary is real and deliberately placed: any rule honouring the
-   task's acceptance signal — the fewer-findings card "wins, even if its
-   confidence score is lower" (task.md) — has a flip point somewhere; only
-   the never-trade rule has none, and Decision 2 rejects it. Both sides of
-   this cliff are acceptable outcomes — a truthful upgrade retaining at
-   least three-quarters of its rival's coverage, or a richer card shipped
-   with a badge naming its falsehood. Accepted consequence, pinned: when
-   *both* cards are weak (0.65 `{F6}` vs 0.50 clean, ratio 0.769), the
-   truthful one wins — the mirror doctrine is relational, and no
-   substantial card is displaced there.
+   better, 8/9 vs 7/9; distinct-rule counting agrees with the score).
+   Equal distinct counts — including magnitude differences within one rule
+   — fall through. **The guard, stated literally:** the candidate this
+   step favours is the one with fewer distinct failed F rules; the step is
+   decisive iff
+   `favoured.confidence >= other.confidence - COVERAGE_GAP - EPSILON`;
+   otherwise skip to step 7. `EPSILON` makes the boundary genuinely
+   inclusive under floating point: a deficit of exactly 0.2 is decisive —
+   `0.59 >= 0.79 - 0.2 - 1e-9` is true where the bare subtraction is not.
+   The guard is a function of the coverage *difference*, uniform
+   everywhere on the axis. That matters because under today's trigger,
+   escalation only ever runs below 0.6 — so a rule keyed to band
+   membership was inert exactly where the pre-existing path operates, and
+   the lower band is precisely where near-flat F-clean cards live (a
+   near-flat card is low-coverage by definition;
+   `src/core/plan.ts:120-127` does not count appended orphans as matched).
+   It closes the named holes: **(A)** 0.55 `{F6}` vs 0.05 clean (deficit
+   0.50) and **(B)** 1.00 `{F6}` vs 0.61 clean (0.39) → guard skips, local
+   kept, as today. **(D)** 0.61 `{F1..F7}` vs 0.59 clean (deficit 0.02) →
+   decisive, the truthful card wins — the guard is indifferent to which
+   side of any threshold the pair sits on, so step 7's truth-blindness is
+   reached only when the truthful card is materially sparser. **(C)** the
+   cliff at the guard boundary is real and deliberately placed: any rule
+   honouring the task's acceptance signal — the fewer-findings card "wins,
+   even if its confidence score is lower" (task.md) — has a flip point
+   somewhere; only the never-trade rule has none, and Decision 2 rejects
+   it. Both sides of this cliff are acceptable outcomes — a truthful
+   upgrade within the gap, or a richer card shipped with a badge naming
+   its falsehood — unlike the band's cliff, where one side was the mirror
+   bug. Accepted consequence, pinned: when *both* cards are weak (0.65
+   `{F6}` vs 0.50 clean), the truthful one wins within the gap. The
+   mirror doctrine is relational, and "substantial" is anchored to the
+   constant, not left as prose: **no card more than `COVERAGE_GAP` of
+   coverage richer than its rival is ever displaced.** A 0.55 `{F6}` card
+   *can* lose to a 0.36 clean one (deficit 0.19, in-gap) — that is the
+   bounded trade working as specified, not a protected card slipping
+   through.
 7. Confidence rule, `>=` still favouring Claude.
 
 **Worked instances, all pinned as regression tests:** round-1 (local
 `{S:[S1]}` vs Claude `{S:[S4],F:[F3,F5,F6]}`) → step 3, Claude, as today.
 Every mirror pair keeps local exactly as today's code does — round-2 0.80
-vs 0.30 (ratio 0.375); round-3 0.59 vs 0.30 (0.508) and 0.95 vs 0.61
-(0.642); hole A 0.55 vs 0.05 (0.09); hole B 1.00 vs 0.61 (0.61); **the
-round-4 low-coverage pairs 0.20 vs 0.01 (0.05) and 0.25 vs 0.05 (0.20)**
-— each `{F6}` vs clean. Low-coverage in both directions: 0.30 `{F6}` vs
-0.25 clean (0.833) → truthful card wins; 0.30 `{F6}` vs 0.20 clean
-(0.667) → local. Hole D: 0.61 `{F1..F7}` vs 0.59 clean → truthful card
-wins. Both-weak: 0.65 `{F6}` vs 0.50 clean → truthful card wins, pinned
-as deliberate. The yogurt fix (0.79 `{F6}` vs F-clean Claude at 0.70,
-ratio 0.886) → Claude, at numerically lower confidence. The rulebook pair
-({F7,F7,F7} vs {F3,F6}, equal confidence) → local, agreeing with §5. The
-boundary, pinned with **dyadic-exact fixtures** so IEEE 754 cannot decide
-the test (the round-4 arithmetic finding): favoured 0.75 vs rival 1.0 —
-both exactly representable, product exact — sits exactly on the boundary
-and is decisive (inclusive `>=`); favoured 0.5 vs rival 0.75 (boundary
-0.5625, exact) is not. Real-world ratios never sit on the boundary
-meaningfully; `EPSILON` absorbs their rounding.
+vs 0.30 (deficit 0.50); round-3 0.59 vs 0.30 (0.29) and 0.95 vs 0.61
+(0.34); hole A 0.55 vs 0.05 (0.50); hole B 1.00 vs 0.61 (0.39) — each
+`{F6}` vs clean. Hole D: 0.61 `{F1..F7}` vs 0.59 clean → the truthful
+card wins (deficit 0.02). The cliff, pinned from both sides and evaluated
+under the stated predicate with `EPSILON`: 0.79 `{F6}` vs 0.59 clean
+(deficit exactly 0.2) → truthful card wins; 0.80 `{F6}` vs 0.59 clean
+(0.21) → local, badged. Both-weak: 0.65 `{F6}` vs 0.50 clean → truthful
+card wins, pinned as deliberate. The yogurt fix (0.79 `{F6}` vs an
+F-clean Claude card at 0.70; deficit 0.09) → Claude, at numerically lower
+confidence. The rulebook pair ({F7,F7,F7} vs {F3,F6}, equal confidence) →
+local, agreeing with §5.
+
+**Commensurability — verified, not deferred.** Both confidence numbers
+divide by `raw.ingredientLines.length`. `buildMatchers`
+(`src/core/infer.ts:211-213`) is `lines.map(parseIngredient)` mapped 1:1
+with no filtering, so `matchers.length === raw.ingredientLines.length` and
+`infer.ts:392-393` divides by that; `plan.ts:75` maps the same array and
+`plan.ts:138` divides by its length. Numerators agree in kind —
+`infer.ts:392` subtracts unclaimed matchers, `plan.ts:137` counts
+`claimedIngredients.size`, and both exclude ingredients appended to the
+root (`infer.ts:377`, `plan.ts:115`). The two scales are commensurable, so
+a constant expressed as their difference is meaningful.
 
 **Contract, in the module doc comment:** graded records must come from an
 **options-free** `gradeByTier` call — the `skip` filter runs after the
@@ -322,38 +325,41 @@ a value import would drag the grader into the print/export bundles).
    sticky repeat and the systemic over-fire risk.
 2. **Selection is the seven-step rule above.** *Assumption — chosen without
    user review.* The load-bearing choices: root check as the single
-   authority; unusable-first (round 1: suppressed tiers are unreadable);
-   S by presence, unconditional (step 5's three named reasons); F by
-   **distinct failed rules** (aligns with §5's per-rule scoring); the F
-   step guarded by **retained coverage — a ratio, not a difference**.
-   Alternatives rejected across rounds: lexicographic counts (round 1);
-   unconditional F-count (round 2, mirror bug); trust-band floor (round 3:
-   guards one point on a continuous axis, inert in the only region the old
-   trigger reaches, borrowed `CLAUDE_THRESHOLD`'s authority); raw finding
-   count (round 3, contradicts §5); **absolute difference floor** (round
-   4: the maximum achievable difference is bounded by the higher card's
-   coverage, so the guard degenerates exactly where near-flat F-clean
-   cards live — closing it needed a clause of a different *shape*, not a
-   retuned constant); **a fixed floor on the favoured card's own
-   coverage** (round 4's other sanctioned option) — rejected: a second
-   constant needing its own bounds argument, two clauses instead of one,
-   and any floor at or near `CLAUDE_THRESHOLD` would have reopened hole D
-   by blocking the 0.59 truthful card; and **the never-trade rule**
-   (`RETAIN_RATIO = 1`) — rejected: it refuses the very upgrade the
-   feature exists to perform (a genuine repair typically costs some
-   coverage), deletes a user-stated acceptance signal (task.md: the
-   fewer-findings candidate "wins, even if its confidence score is lower";
-   PRD AC3) in every conflict case, and buys cannot-regress by never
-   improving when the axes conflict — where bounded-trade's failure mode
-   is a labelled card, not an unlabelled lie. **Disclosed boundary move:**
-   relative to revision 4's absolute rule, a truthful card retaining
-   ≥ 0.75 of a high-coverage rival can now win at deficits up to 0.25
-   (e.g. 1.00 `{F6}` vs 0.76 clean upgrades) — that is the yogurt class,
-   not the mirror class: a card retaining three-quarters of its rival is
-   not near-flat. **Cost:** seven steps, each separately unit-testable;
-   and a real trade at step 6 — a truthful card below the retention
-   boundary loses, and the false card ships with an honest low badge
-   naming its finding.
+   authority (the outer guard is dropped, not duplicated); unusable-first
+   (round-1 defect: suppressed tiers are unreadable); S by presence,
+   unconditional (step 5's three named reasons); F by **distinct failed
+   rules** (aligns the runtime order with §5's per-rule scoring — raw
+   counts can prefer the card the rulebook calls worse); the F step guarded
+   by **`COVERAGE_GAP`, a function of the coverage difference** (round-3
+   defect: a threshold band guards one point on a continuous axis, is a
+   no-op in the only region today's trigger reaches, and borrowed
+   `CLAUDE_THRESHOLD`'s authority across a semantic boundary). Alternatives
+   rejected across rounds: lexicographic counts (round 1), unconditional
+   F-count (round 2, mirror bug), trust-band floor (round 3, fixes
+   instance not class), raw finding count (round 3, contradicts §5), and
+   **the never-trade rule** (round-3 audit's suggested direction: Claude
+   wins only when no worse on *both* axes). Never-trade is
+   `COVERAGE_GAP = 0`, the degenerate member of the same family, and is
+   rejected for two reasons that stand alone: it fails the argued lower
+   bound — a genuine repair typically reattaches differently and costs
+   some coverage, so never-trade refuses the very upgrade the feature
+   exists to perform; and it deletes a user-stated acceptance signal
+   (task.md: the fewer-findings candidate "wins, even if its confidence
+   score is lower"; PRD AC3) in every conflict case where the truthful
+   card is even slightly sparser. Its cannot-regress property is real but
+   narrower than it sounds: at equal confidence it does improve on
+   today's `>=` (the truthful card wins the tie), yet it forgoes every
+   upgrade in which truth costs any coverage at all — where the
+   bounded-trade rule's failure mode on the wrong side of its cliff is a
+   labelled card, not an unlabelled lie. On the constant itself: revision
+   3 rejected a numeric gap as unjustifiable while adopting a band that
+   *was* a gap floor in disguise — an unargued, position-dependent one.
+   This design resolves the inconsistency in the constant's favour:
+   **chosen, not borrowed**, with the bounds and the insensitive range
+   [0.15, 0.25] argued at the definition. **Cost:** seven steps, each
+   separately unit-testable; and a real trade at step 6 — a truthful card
+   materially sparser than a false rival loses, and the false card ships
+   with an honest low badge naming its finding.
 3. **At most one Claude call per run, unchanged.** Alternative: retry when
    the Claude card also fails — rejected: same prompt, same model, per-recipe
    cost posture documented (`src/llm/claude.ts:51-55, :71-76`) for calls
@@ -394,11 +400,10 @@ a value import would drag the grader into the print/export bundles).
    is a Risk, not an accepted cost.
 10. **PRD acceptance criterion 3 is deliberately narrowed.** *Assumption —
     chosen without user review.* "Even if its confidence score is
-    numerically lower" is honoured only for a card retaining at least
-    `RETAIN_RATIO` of its rival's coverage (step 6). Unqualified, the
-    criterion reproduces the mirror bug — discarding a substantial,
-    mostly-correct card for a truthful near-flat one — and would regress
-    pairs today's code already gets right, at every coverage level. The
+    numerically lower" is honoured only within `COVERAGE_GAP` (step 6).
+    Unqualified, the criterion reproduces the mirror bug — discarding a
+    substantial, mostly-correct card for a truthful near-flat one — and
+    from round 3, would regress pairs today's code already gets right. The
     narrowing is the smaller betrayal of the PRD's own problem statement.
 
 ## Edge cases
@@ -410,15 +415,16 @@ a value import would drag the grader into the print/export bundles).
   rootless card from ever winning; the error path at `:216-218` unchanged;
   crashes on a null root absorbed by `tryGrade`.
 - **Boundary values.** Confidence exactly 0.6, zero findings → no call
-  (strict `<`). 0.79 with F6 → escalates. The step-6 boundary is pinned
-  with dyadic-exact fixtures (0.75-vs-1.0 decisive inclusive; 0.5-vs-0.75
-  not) — decimal pairs like 0.79/0.59 are **not** used as boundary pins,
-  because IEEE 754 makes their difference land on an unspecified side
-  (the round-4 finding); `EPSILON` absorbs rounding for real-world
-  ratios. A pair straddling the old threshold by 0.02 (0.61 vs 0.59) →
-  the ratio rules, threshold sides ignored (hole D). Fully graded, same
-  S-presence, equal distinct F rules, equal confidence → Claude (`>=`
-  preserved). Both unusable → confidence rule.
+  (strict `<`). 0.79 with F6 → escalates. Deficit exactly `COVERAGE_GAP`
+  (0.79 vs 0.59) → step 6 decisive **because the predicate carries
+  `EPSILON`** — the bare subtraction lands on the wrong side in IEEE 754
+  (`0.79 - 0.2 === 0.5900000000000001`), which is exactly why the
+  tolerance is part of the spec; one point past it (0.80 vs 0.59) → guard
+  skips to confidence — the cliff, probed from both sides. A pair
+  straddling the old threshold by 0.02 (0.61 vs 0.59) → deficit rules,
+  threshold sides ignored (hole D). Fully graded, same S-presence, equal
+  distinct F rules, equal confidence → Claude (`>=` preserved). Both
+  unusable → confidence rule.
 - **Failure paths.** `gradeByTier` throws → `tryGrade` null → both
   decisions degrade to today's behaviour, badge unchanged from today.
   `askClaude` null → local ships; `graded` still holds `localGraded` (see
@@ -450,19 +456,17 @@ Per PRD acceptance criterion:
 - **Fewer/no S-F candidate wins** — `pickBetter` unit tests, one per step:
   root combinations including both-rootless (step 1, the only authority);
   round-1 scenario (step 3); both-unusable; no-S beats any-S at any
-  confidence (pinned deliberate consequence); the yogurt fix (fewer
-  distinct F, in-ratio, lower confidence → wins); **every mirror pair by
+  confidence (the pinned deliberate consequence); the yogurt fix (fewer
+  distinct F, in-gap, lower confidence → wins); **every mirror pair by
   name** (0.80/0.30, 0.59/0.30, 0.95/0.61, hole A 0.55/0.05, hole B
-  1.00/0.61, **and the round-4 low-coverage pairs 0.20/0.01 and
-  0.25/0.05** — guard skips, local kept, matching today); **low-coverage
-  in both directions** (0.30/0.25 → truthful wins; 0.30/0.20 → local);
-  hole D (0.61 `{F1..F7}` vs 0.59 clean → truthful wins across the old
+  1.00/0.61 — guard skips, local kept, matching today); hole D
+  (0.61 `{F1..F7}` vs 0.59 clean → truthful wins across the old
   threshold); the both-weak pair (0.65/0.50 → truthful wins, pinned as
   deliberate); the rulebook pair ({F7,F7,F7} vs {F3,F6} → local, agreeing
   with §5); the magnitude-inversion pair ({F3×30, F6×30} vs {F3,F5,F6} →
-  the two-rule card wins, pinned as deliberate — see Risks); **the
-  boundary with dyadic-exact fixtures** (0.75-vs-1.0 decisive inclusive;
-  0.5-vs-0.75 not); full tie → Claude; null grade → today's rule.
+  the two-rule card wins, pinned as deliberate — see Risks); the cliff
+  from both sides under the `EPSILON`-carrying predicate (0.79/0.59
+  decisive, 0.80/0.59 not); full tie → Claude; null grade → today's rule.
 - **Flat fallback preserved** — by construction: `:215-218` untouched;
   lifecycle table resets `graded` to null there.
 - **Badge choice explicit** — `tests/core/render.test.ts` (new): unchanged
@@ -499,24 +503,24 @@ machinery than the thinnest honest version needs, none with a demand signal.
   fixture suite cannot warn us (tuning set); mitigation is the grader's
   precision-over-recall bias (`docs/recipe-card-rules.md:197-209`) and the
   reopen trigger below.
-- **`RETAIN_RATIO` is chosen, not derived.** Its bounds are argued at both
-  ends of the axis and the pinned scenarios are insensitive across
-  [0.68, 0.76], but a real pair could sit at the cliff (a truthful card
-  retaining 0.74 of its rival loses; 0.76 wins). Both sides of that cliff
-  produce an acceptable, labelled outcome — the argued reason the cliff is
-  tolerable — and the constant is named, exported, and documented as a
-  judgement so it can be re-argued with field evidence.
-- **Distinct-rule counting inverts magnitude — deliberate, like step 5.**
-  {F3×30, F6×30} (two rules, sixty false statements) beats {F3, F5, F6}
-  (three rules, three statements) at in-ratio confidence. This is
-  rulebook-consistent — §5 scores 7/9 vs 6/9 the same way — and is the
-  exact mirror of the raw-count complaint that produced the change; the
-  consequence is pinned in tests so it stays a choice. If field evidence
-  shows finding-magnitude matters, the §5 scoring model is the thing to
-  re-argue, not this comparator alone.
+- `COVERAGE_GAP` is chosen, not derived. Its bounds are argued and the
+  pinned scenarios are insensitive across [0.15, 0.25], but a pair of real
+  cards could sit at the cliff (a truthful card 0.21 sparser loses; 0.20
+  sparser wins). Both sides of that cliff produce an acceptable, labelled
+  outcome — which is the argued reason the cliff is tolerable at all — and
+  the constant is named, exported, and documented as a judgement so it can
+  be re-argued with field evidence.
+- **Distinct-rule counting inverts magnitude across rules — deliberate,
+  like step 5.** {F3×30, F6×30} (two rules, sixty false statements) beats
+  {F3, F5, F6} (three rules, three statements) at in-gap confidence. This
+  is rulebook-consistent — §5 scores the pair 7/9 vs 6/9 the same way —
+  and is the exact mirror of the raw-count complaint that produced the
+  change; the consequence is pinned in tests so it stays a choice. If
+  field evidence shows finding-magnitude matters, the §5 scoring model is
+  the thing to re-argue, not this comparator alone.
 - Step 5's unconditional S-presence lets a sparse S-clean card beat a rich
-  one-S card at any coverage distance — deliberate, argued at step 5,
-  pinned in tests.
+  one-S card at any coverage distance — deliberate, argued at step 5, and
+  pinned in tests so it stays a choice.
 - A page with a persistent finding pays a call on every open (Decision 9).
 - The Claude-success branch of `run()` ships without direct tests; a
   plumbing mistake there surfaces as behaviour, not a failing suite.
@@ -533,6 +537,6 @@ None block this design. Deferred with owners and reopen triggers:
 - **Cross-run verdict caching** (Decision 9). Owner: repo maintainer.
   Reopen if a user reports meaningful spend — one page (sticky) or many
   (systemic over-fire).
-- **`RETAIN_RATIO` calibration.** Owner: repo maintainer. Reopen if a real
-  page produces a pair inside the [0.68, 0.76] sensitivity window with a
+- **`COVERAGE_GAP` calibration.** Owner: repo maintainer. Reopen if a real
+  page produces a pair inside the [0.15, 0.25] sensitivity window with a
   disputed winner.
