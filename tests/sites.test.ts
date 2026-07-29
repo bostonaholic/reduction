@@ -83,13 +83,9 @@ describe.skipIf(names.length === 0)('real recipe sites', () => {
       expect(graded.F.map((f) => `${f.rule}: ${f.detail}`)).toEqual([]);
     });
 
-    // L8 is excluded because it currently fails for real: a unit is singularized
-    // during parsing and never restored, so "2 cloves garlic" renders as "2
-    // clove garlic". That is a defect in the ingredient formatter, not in the
-    // card, and it is skipped here rather than silently dropped from the rules.
-    it('is legible, apart from the known plural defect', () => {
+    it('is legible', () => {
       const recipe = inferTree(raw, `https://example.test/${name}`);
-      const graded = gradeByTier(recipe, raw, { skip: ['L8'] });
+      const graded = gradeByTier(recipe, raw);
       expect(graded.L.map((f) => `${f.rule}: ${f.detail}`)).toEqual([]);
     });
   });
