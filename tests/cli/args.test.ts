@@ -50,6 +50,41 @@ describe('parseArgs', () => {
     }
   });
 
+  it('rejects credentials on a non-http(s) URL without echoing them', () => {
+    // The credential check must win over the protocol check: the protocol
+    // message echoes the URL, and would leak the password otherwise.
+    const result = parseArgs(['ftp://alice:hunter2@example.test/r']);
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).not.toContain('hunter2');
+      expect(result.message).toMatch(/credentials/i);
+    }
+  });
+
+  it('never echoes an unparseable URL, which could carry credentials', () => {
+    const result = parseArgs(['http://user:secret@[broken']);
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).not.toContain('secret');
+    }
+  });
+
+  it('strips terminal control characters from echoed argument values', () => {
+    const ESC = String.fromCharCode(27);
+    for (const argv of [
+      [`x:${ESC}[31mRED${ESC}[0m`],
+      [`--${ESC}[2Jflag`],
+      ['https://example.test/', `${ESC}]0;t${ESC}\\`],
+      ['https://example.test/', '--format', `${ESC}[31myaml`],
+    ]) {
+      const result = parseArgs(argv);
+      expect(result.kind).toBe('error');
+      if (result.kind === 'error') {
+        expect(result.message).not.toContain(ESC);
+      }
+    }
+  });
+
   it('rejects an unknown flag as a usage error', () => {
     expect(parseArgs(['https://example.test/brownies', '--frobnicate']).kind).toBe('error');
   });

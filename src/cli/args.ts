@@ -7,6 +7,8 @@
  * unit-tests without spawning a process.
  */
 
+import { stripControls } from './sanitize.js';
+
 export type OutputFormat = 'text' | 'json' | 'html';
 
 const FORMATS: readonly OutputFormat[] = ['text', 'json', 'html'];
@@ -51,13 +53,17 @@ export function parseArgs(argv: string[]): ParsedArgs {
     if (arg === '--format') {
       const value = argv[++i];
       if (!value || !(FORMATS as readonly string[]).includes(value)) {
-        return { kind: 'error', message: `unknown format: ${value ?? '(missing)'}` };
+        return { kind: 'error', message: `unknown format: ${stripControls(value ?? '(missing)')}` };
       }
       format = value as OutputFormat;
       continue;
     }
-    if (arg.startsWith('--')) return { kind: 'error', message: `unknown flag: ${arg}` };
-    if (url !== undefined) return { kind: 'error', message: `unexpected argument: ${arg}` };
+    if (arg.startsWith('--')) {
+      return { kind: 'error', message: `unknown flag: ${stripControls(arg)}` };
+    }
+    if (url !== undefined) {
+      return { kind: 'error', message: `unexpected argument: ${stripControls(arg)}` };
+    }
     url = arg;
   }
 
@@ -67,16 +73,19 @@ export function parseArgs(argv: string[]): ParsedArgs {
   try {
     parsed = new URL(url);
   } catch {
-    return { kind: 'error', message: `not a valid URL: ${url}` };
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return { kind: 'error', message: `only http(s) URLs are supported: ${url}` };
+    // An unparseable string can still contain user:password@ material, so
+    // the message never echoes it.
+    return { kind: 'error', message: 'not a valid URL' };
   }
   // Embedded credentials would flow into the recipe's sourceUrl and print in
-  // the output; refuse them rather than leak them. The message deliberately
-  // omits the URL for the same reason.
+  // the output; refuse them rather than leak them. Checked before the
+  // protocol branch below so that no error message ever echoes them, and
+  // omitted from this message for the same reason.
   if (parsed.username !== '' || parsed.password !== '') {
     return { kind: 'error', message: 'URLs with embedded credentials are not supported' };
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { kind: 'error', message: `only http(s) URLs are supported: ${stripControls(url)}` };
   }
 
   return { kind: 'run', url, format, claude };

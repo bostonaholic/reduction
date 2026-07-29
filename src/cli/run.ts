@@ -18,6 +18,7 @@ import { confidenceNote, renderTable } from '../core/render.js';
 import { renderText } from '../core/render-text.js';
 import { callClaude, resolveEffort, resolveModel } from '../llm/claude.js';
 import type { OutputFormat } from './args.js';
+import { stripControls } from './sanitize.js';
 
 /** Browser-mimicking request headers, the shape tools/capture-fixtures.mjs uses. */
 const HEADERS = {
@@ -155,7 +156,10 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
         const viaClaude = treeFromPlan(plan, raw, res.url);
         if (viaClaude.root && viaClaude.confidence >= recipe.confidence) recipe = viaClaude;
       } catch (err) {
-        stderr.write(`Claude failed, keeping the local result: ${(err as Error).message}\n`);
+        // The message can carry a slice of the API response body; strip it
+        // like any other remote text before it reaches the terminal.
+        const reason = stripControls((err as Error).message ?? String(err));
+        stderr.write(`Claude failed, keeping the local result: ${reason}\n`);
       }
     }
   }
