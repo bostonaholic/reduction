@@ -1,9 +1,9 @@
 # Reduction
 
-A Chrome extension that turns any recipe page into a [Cooking For
-Engineers](https://www.cookingforengineers.com/) style tabular diagram —
-ingredients down the left, operations spanning the rows they consume, the whole
-thing readable as a timeline.
+A Chrome extension and command-line tool that turn any recipe page into a
+[Cooking For Engineers](https://www.cookingforengineers.com/) style tabular
+diagram — ingredients down the left, operations spanning the rows they
+consume, the whole thing readable as a timeline.
 
 ![The Reduction overlay on a recipe page: the recipe rendered as a table — ingredients down the left, operations spanning the rows they consume — floating above the dimmed page.](docs/screenshot.png)
 
@@ -39,7 +39,9 @@ Click it again, or press <kbd>Esc</kbd>, to dismiss.
 The same pipeline runs from a terminal. The package is private and
 unpublished, so the entry path is `npm link` — `npm install` must run first
 anyway (jsdom is a runtime dependency), and its `prepare` hook builds
-`dist/cli.mjs`, so the bin target exists by the time `npm link` symlinks it:
+`dist/cli.mjs`, so the bin target exists by the time `npm link` symlinks it.
+(`npm ci --ignore-scripts` skips that `prepare` build; run `npm run build`
+yourself afterwards.)
 
 ```sh
 npm install
@@ -59,7 +61,11 @@ extension's `overlay.css` around it.
 
 `--claude` opts in to the Claude tier when the local parse is
 low-confidence. It reads `ANTHROPIC_API_KEY` and spends your API budget,
-so it is never automatic.
+so it is never automatic. `--help` prints usage.
+
+For anyone scripting against the CLI, the exit code is part of the
+contract: `0` success, `1` operational failure (reason on stderr), `2`
+usage error.
 
 Two limitations to know about. Sites that block scripted requests return
 403s to the CLI's plain `fetch` where the extension rides a real browser
@@ -105,7 +111,7 @@ Row order comes from a depth-first traversal of the leaves, which is what
 guarantees every operation's inputs land in a *contiguous* block of rows — the
 only thing a `rowspan` can cover.
 
-The pipeline is four pure functions plus a scraper:
+The pipeline is five pure functions plus a scraper:
 
 | Stage | Module | Contract |
 | --- | --- | --- |
@@ -113,7 +119,8 @@ The pipeline is four pure functions plus a scraper:
 | normalize | `src/core/ingredient.ts`, `units.ts` | ingredient lines → quantities, units, metric equivalents |
 | infer | `src/core/infer.ts` | flat steps → tree + confidence |
 | layout | `src/core/layout.ts` | tree → positioned cells with spans |
-| render | `src/core/render.ts` | cells → HTML |
+| render | `src/core/render.ts` | cells → HTML (the extension and `--format html`) |
+| render text | `src/core/render-text.ts` | grid → box-drawing text (the CLI's default output) |
 
 None of them touch `chrome.*`, so the entire product logic is unit-testable in
 Node. The extension shell is a thin adapter over the top.
