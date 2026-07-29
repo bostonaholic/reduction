@@ -17,6 +17,10 @@ const PAD = 10;
 // The attribution band below the frame: the source URL in muted small text.
 const BAND_FONT = 12;
 const BAND_COLOR = '#6b7268';
+// Cap on the characters fed to truncateToWidth, which measures O(n) prefixes:
+// a page-controlled URL of unbounded length (history.pushState) could
+// otherwise hang the export click. Far more than any band can display.
+const BAND_TEXT_MAX = 300;
 
 interface Line {
   text: string;
@@ -129,6 +133,15 @@ function readGeometry(table: HTMLTableElement): Geometry {
   return { width: tableRect.width, height: tableRect.height, font, fontSize, boxes };
 }
 
+/**
+ * Drop any #fragment — never needed to reach a page, and often a token
+ * carrier. Exported for tests, like truncateToWidth above.
+ */
+export function stripFragment(value: string): string {
+  const hash = value.indexOf('#');
+  return hash === -1 ? value : value.slice(0, hash);
+}
+
 /** Only http(s) URLs earn a link — anything else stays inert text. */
 function isHttpUrl(value: string): boolean {
   try {
@@ -152,7 +165,7 @@ export function toSvg(table: HTMLTableElement, sourceUrl: string): string {
   const geo = readGeometry(table);
   const style = getComputedStyle(table);
   const family = escapeXml(style.fontFamily);
-  const url = sourceUrl.trim();
+  const url = stripFragment(sourceUrl.trim());
   // The attribution band extends the output below the frame; the frame
   // itself keeps the table's own height.
   const bandHeight = url ? BAND_FONT + PAD * 2 : 0;
@@ -184,7 +197,7 @@ export function toSvg(table: HTMLTableElement, sourceUrl: string): string {
 
   if (bandHeight > 0) {
     const truncated = truncateToWidth(
-      url,
+      url.slice(0, BAND_TEXT_MAX),
       Math.max(geo.width - PAD * 2, 20),
       measurer(`${BAND_FONT}px ${style.fontFamily}`),
     );
@@ -204,7 +217,7 @@ export async function toPng(
   scale = 2,
 ): Promise<Blob | null> {
   const geo = readGeometry(table);
-  const url = sourceUrl.trim();
+  const url = stripFragment(sourceUrl.trim());
   // The attribution band extends the output below the frame; the frame
   // itself keeps the table's own height.
   const bandHeight = url ? BAND_FONT + PAD * 2 : 0;
@@ -246,7 +259,7 @@ export async function toPng(
     ctx.font = bandFont;
     ctx.textAlign = 'center';
     ctx.fillText(
-      truncateToWidth(url, Math.max(geo.width - PAD * 2, 20), measurer(bandFont)),
+      truncateToWidth(url.slice(0, BAND_TEXT_MAX), Math.max(geo.width - PAD * 2, 20), measurer(bandFont)),
       geo.width / 2,
       geo.height + PAD + BAND_FONT * 0.82,
     );

@@ -49,13 +49,19 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
+/** Drop any #fragment — never needed to reach a page, and often a token carrier. */
+function stripFragment(value: string): string {
+  const hash = value.indexOf('#');
+  return hash === -1 ? value : value.slice(0, hash);
+}
+
 /** A complete HTML document for the print tab. */
 export function printableDocument(recipe: Recipe, grid: Grid, sharedCss: string): string {
-  const url = recipe.sourceUrl.trim();
+  const url = stripFragment(recipe.sourceUrl.trim());
   const source = !url
     ? ''
     : isHttpUrl(url)
-      ? `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`
+      ? `<a href="${escapeHtml(url)}" rel="noreferrer noopener">${escapeHtml(url)}</a>`
       : escapeHtml(url);
   const servings = recipe.yield ? escapeHtml(recipe.yield) : '';
   const meta = [source, servings].filter(Boolean).join(' · ');

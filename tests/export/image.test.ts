@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { truncateToWidth } from '../../src/export/image.js';
+import { stripFragment, truncateToWidth } from '../../src/export/image.js';
 
 /** Fake measurer: ten pixels per character, so no canvas is needed. */
 const width = (s: string): number => s.length * 10;
@@ -21,5 +21,17 @@ describe('truncateToWidth', () => {
 
   it('returns an empty string for empty input', () => {
     expect(truncateToWidth('', 100, width)).toBe('');
+  });
+});
+
+describe('stripFragment', () => {
+  it('drops the fragment but keeps the query string', () => {
+    expect(stripFragment('https://example.test/r?p=1#access_token=abc')).toBe(
+      'https://example.test/r?p=1',
+    );
+  });
+
+  it('leaves a fragment-free url unchanged', () => {
+    expect(stripFragment('https://example.test/r?p=1')).toBe('https://example.test/r?p=1');
   });
 });
