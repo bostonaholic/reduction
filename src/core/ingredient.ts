@@ -33,6 +33,9 @@ const ASIDE = /\((optional|divided|to taste|or more to taste|plus more[^)]*|see 
 const NOTE_STARTER =
   /^(?:[a-z-]+ed\b|to taste|optional|divided|plus more|for (?:garnish|serving|dusting|brushing|greasing)|at room temperature|room temperature|cut into|finely|thinly|roughly|coarsely|freshly|well[- ]shaken|packed|lightly|about|approximately|or more|or less|if (?:desired|needed|using)|preferably|homemade|store[- ]bought)\b/i;
 
+/** A seasoning-to-taste suffix, with or without the comma that would make it a note. */
+const TO_TASTE = /\s*,?\s*\bto taste\b\.?$/i;
+
 /** A metric amount already supplied by the site, e.g. "(80 g)". */
 const EXISTING_METRIC = /\((\d[\d.,/\s]*)\s*(g|kg|ml|l|grams?|kilograms?|millilitres?|milliliters?|litres?|liters?)\)/i;
 
@@ -128,9 +131,16 @@ export function parseIngredient(rawLine: string): Ingredient {
     }
   }
 
+  // "Salt and black pepper to taste" has no comma to hang the note off, and
+  // without this the head noun comes out as "taste" — which no step ever says.
+  let note: string | undefined;
+  if (TO_TASTE.test(rest)) {
+    note = 'to taste';
+    rest = rest.replace(TO_TASTE, '').trim();
+  }
+
   // A trailing clause becomes a note only when it reads like one, so that
   // "boneless, skinless chicken breast" keeps its whole name.
-  let note: string | undefined;
   const comma = rest.indexOf(',');
   if (comma > 0) {
     const tail = rest.slice(comma + 1).trim();
