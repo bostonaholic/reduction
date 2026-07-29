@@ -12,11 +12,20 @@ import { JSDOM } from 'jsdom';
 import { NoRecipeFound, extractRecipe } from '../core/extract.js';
 import { flatTree, inferTree } from '../core/infer.js';
 import { layout } from '../core/layout.js';
+import { treeFromPlan } from '../core/plan.js';
 import { confidenceNote, renderTable } from '../core/render.js';
 import { renderText } from '../core/render-text.js';
+import { callClaude, resolveEffort, resolveModel } from '../llm/claude.js';
 import type { OutputFormat } from './args.js';
 
 /** Browser-mimicking request headers, the shape tools/capture-fixtures.mjs uses. */
+/**
+ * Below this the local heuristics are not trustworthy enough to show alone.
+ * Mirrors CLAUDE_THRESHOLD in src/content/index.ts — strict `<`, so exactly
+ * 0.6 stays heuristic there too.
+ */
+const CLAUDE_THRESHOLD = 0.6;
+
 const HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -56,6 +65,14 @@ export interface RunDeps {
 export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   const { stdout, stderr } = deps;
 
+  // A usage error, not an operational one: the remedy is in the invocation
+  // environment, and no network work has begun.
+  const apiKey = deps.env.ANTHROPIC_API_KEY;
+  if (args.claude && !apiKey) {
+    stderr.write('--claude requires ANTHROPIC_API_KEY in the environment\n');
+    return 2;
+  }
+
   let res: CliResponse;
   try {
     res = await deps.fetch(args.url, { headers: HEADERS });
@@ -80,6 +97,29 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
 
   // The post-redirect URL, matching what location.href gives the extension.
   let recipe = inferTree(raw, res.url);
+
+  if (args.claude && apiKey) {
+    if (recipe.confidence >= CLAUDE_THRESHOLD) {
+      stderr.write(
+        `confidence ${recipe.confidence.toFixed(2)} ≥ ${CLAUDE_THRESHOLD} — Claude not needed\n`,
+      );
+    } else {
+      // Mirror the extension's plan B: any Claude failure warns once and
+      // keeps the heuristic result.
+      try {
+        const plan = await callClaude(
+          { apiKey, model: resolveModel(undefined), effort: resolveEffort(undefined), browser: false },
+          raw.title,
+          raw.ingredientLines,
+          raw.stepTexts,
+        );
+        const viaClaude = treeFromPlan(plan, raw, res.url);
+        if (viaClaude.root && viaClaude.confidence >= recipe.confidence) recipe = viaClaude;
+      } catch (err) {
+        stderr.write(`Claude failed, keeping the local result: ${(err as Error).message}\n`);
+      }
+    }
+  }
 
   if (!recipe.root) recipe = flatTree(raw, res.url);
   if (!recipe.root) {

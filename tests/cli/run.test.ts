@@ -45,6 +45,18 @@ const CONFIDENT_PAGE = jsonLdPage({
   ],
 });
 
+/** No step names any ingredient — confidence < 0.6, so --claude escalates. */
+const LOW_CONFIDENCE_PAGE = jsonLdPage({
+  '@context': 'https://schema.org',
+  '@type': 'Recipe',
+  name: 'Mystery Stew',
+  recipeIngredient: ['1 cup quinoa', '2 cups vegetable broth', '1 lemon'],
+  recipeInstructions: [
+    { '@type': 'HowToStep', text: 'Combine everything in the pot.' },
+    { '@type': 'HowToStep', text: 'Simmer for 15 minutes.' },
+  ],
+});
+
 /** Extraction succeeds (steps only) but no tree can be built: null root. */
 const NO_INGREDIENT_PAGE = jsonLdPage({
   '@context': 'https://schema.org',
@@ -86,6 +98,10 @@ function makeDeps(fetch: (...args: any[]) => any, env: Record<string, string> = 
   const stdout = sink();
   const stderr = sink();
   return { deps: { fetch, stdout, stderr, env, width: 100 }, stdout, stderr };
+}
+
+function urlsRequestedBy(mock: ReturnType<typeof vi.fn>): string[] {
+  return mock.mock.calls.map((call) => String(call[0]));
 }
 
 afterEach(() => {
@@ -161,3 +177,72 @@ describe('run failure ladder', () => {
     expect(stdout.text).toBe('');
   });
 });
+
+describe('run claude gating', () => {
+  it('treats --claude without ANTHROPIC_API_KEY as a usage error before any network work', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(LOW_CONFIDENCE_PAGE));
+    const { deps, stderr } = makeDeps(fetchPage, {});
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: true }, deps);
+
+    expect(exit).toBe(2);
+    expect(stderr.text).toContain('ANTHROPIC_API_KEY');
+    expect(fetchPage).not.toHaveBeenCalled();
+  });
+
+  it('skips the Claude call at confidence ≥ 0.6, noting why on stderr, and exits 0', async () => {
+    const dispatch = vi.fn(async (input: unknown) =>
+      pageResponse(String(input).includes('api.anthropic.com') ? '' : CONFIDENT_PAGE),
+    );
+    vi.stubGlobal('fetch', dispatch);
+    const { deps, stdout, stderr } = makeDeps(dispatch, { ANTHROPIC_API_KEY: 'sk-ant-test' });
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: true }, deps);
+
+    expect(exit).toBe(0);
+    expect(urlsRequestedBy(dispatch).filter((url) => url.includes('api.anthropic.com'))).toEqual(
+      [],
+    );
+    expect(stderr.text).toContain('Claude not needed');
+    expect(JSON.parse(stdout.text).recipe.title).toBe('Test Brownies');
+  });
+});
+
+describe('run claude fallback', () => {
+  it('warns once on stderr, prints the heuristic result, and exits 0 when the API errors', async () => {
+    const dispatch = vi.fn(async (input: unknown) =>
+      String(input).includes('api.anthropic.com')
+        ? { ok: false, status: 500, text: async (): Promise<string> => 'server exploded' }
+        : pageResponse(LOW_CONFIDENCE_PAGE),
+    );
+    vi.stubGlobal('fetch', dispatch);
+    const { deps, stdout, stderr } = makeDeps(dispatch, { ANTHROPIC_API_KEY: 'sk-ant-test' });
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: true }, deps);
+
+    expect(exit).toBe(0);
+    expect(JSON.parse(stdout.text).recipe.title).toBe('Mystery Stew');
+    const warnings = stderr.text.trim().split('\n');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/claude/i);
+  });
+
+  it('warns once, falls back, and exits 0 when Claude returns no usable content', async () => {
+    const dispatch = vi.fn(async (input: unknown) =>
+      String(input).includes('api.anthropic.com')
+        ? { ok: true, status: 200, json: async () => ({ content: [] }) }
+        : pageResponse(LOW_CONFIDENCE_PAGE),
+    );
+    vi.stubGlobal('fetch', dispatch);
+    const { deps, stdout, stderr } = makeDeps(dispatch, { ANTHROPIC_API_KEY: 'sk-ant-test' });
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: true }, deps);
+
+    expect(exit).toBe(0);
+    expect(JSON.parse(stdout.text).recipe.title).toBe('Mystery Stew');
+    const warnings = stderr.text.trim().split('\n');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/claude/i);
+  });
+});
+

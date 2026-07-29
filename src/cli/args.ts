@@ -16,7 +16,7 @@ export type ParsedArgs =
   | { kind: 'help' }
   | { kind: 'error'; message: string };
 
-export const USAGE = `Usage: reduction <url> [--format text|json|html] [--help]
+export const USAGE = `Usage: reduction <url> [--format text|json|html] [--claude] [--help]
 
 Fetch a recipe page and print it as a tabular diagram.
 
@@ -26,16 +26,23 @@ Formats:
   html   the same markup the extension renders
 
 Options:
-  --help   show this message
+  --claude   when the local parse is low-confidence, ask Claude to improve it
+             (uses ANTHROPIC_API_KEY and spends your API budget)
+  --help     show this message
 `;
 
 export function parseArgs(argv: string[]): ParsedArgs {
   let url: string | undefined;
   let format: OutputFormat = 'text';
+  let claude = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--help') return { kind: 'help' };
+    if (arg === '--claude') {
+      claude = true;
+      continue;
+    }
     if (arg === '--format') {
       const value = argv[++i];
       if (!value || !(FORMATS as readonly string[]).includes(value)) {
@@ -61,5 +68,5 @@ export function parseArgs(argv: string[]): ParsedArgs {
     return { kind: 'error', message: `only http(s) URLs are supported: ${url}` };
   }
 
-  return { kind: 'run', url, format, claude: false };
+  return { kind: 'run', url, format, claude };
 }

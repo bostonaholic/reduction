@@ -22,7 +22,7 @@ async function requestBodyFor(
   vi.stubGlobal('fetch', fetchMock);
 
   await callClaude(
-    { apiKey: 'sk-ant-test', model: resolveModel(modelId), effort },
+    { apiKey: 'sk-ant-test', model: resolveModel(modelId), effort, browser: true },
     'Brownies',
     ['4 oz butter'],
     ['Melt it.'],
@@ -65,6 +65,37 @@ describe('resolveEffort', () => {
     expect(resolveEffort(undefined)).toBe('low');
     expect(resolveEffort('exhaustive')).toBe('low');
     expect(DEFAULT_EFFORT).toBe('low');
+  });
+});
+
+/** Captures the request headers callClaude would put on the wire. */
+async function requestHeadersFor(browser: boolean): Promise<Record<string, string>> {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ content: [{ type: 'text', text: '{"banners":[],"steps":[]}' }] }),
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  // Assembled outside the call so this compiles both before and after
+  // ClaudeSettings gains its required `browser` field (excess properties are
+  // only checked on literals passed directly).
+  const settings = { apiKey: 'sk-ant-test', model: DEFAULT_MODEL, effort: DEFAULT_EFFORT, browser };
+  await callClaude(settings, 'Brownies', ['4 oz butter'], ['Melt it.']);
+
+  return fetchMock.mock.calls[0][1].headers;
+}
+
+describe('callClaude browser header', () => {
+  it('sends the direct-browser-access opt-in when the caller is a browser', async () => {
+    const headers = await requestHeadersFor(true);
+    expect(headers['anthropic-dangerous-direct-browser-access']).toBe('true');
+  });
+
+  it('omits the browser-only header when the caller is not a browser', async () => {
+    // Sending a browser-only opt-in from Node is misleading and fragile; the
+    // CLI constructs its settings with browser: false.
+    const headers = await requestHeadersFor(false);
+    expect(headers).not.toHaveProperty('anthropic-dangerous-direct-browser-access');
   });
 });
 
