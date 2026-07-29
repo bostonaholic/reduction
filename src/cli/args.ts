@@ -67,6 +67,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     return { kind: 'error', message: `only http(s) URLs are supported: ${url}` };
   }
+  // Embedded credentials would flow into the recipe's sourceUrl and print in
+  // the output; refuse them rather than leak them. The message deliberately
+  // omits the URL for the same reason.
+  if (parsed.username !== '' || parsed.password !== '') {
+    return { kind: 'error', message: 'URLs with embedded credentials are not supported' };
+  }
 
   return { kind: 'run', url, format, claude };
 }

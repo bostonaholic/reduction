@@ -41,6 +41,15 @@ describe('parseArgs', () => {
     expect(parseArgs(['ftp://example.test/brownies']).kind).toBe('error');
   });
 
+  it('rejects a URL with embedded credentials without echoing them', () => {
+    const result = parseArgs(['https://user:token@example.test/brownies']);
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).not.toContain('token');
+      expect(result.message).toMatch(/credentials/i);
+    }
+  });
+
   it('rejects an unknown flag as a usage error', () => {
     expect(parseArgs(['https://example.test/brownies', '--frobnicate']).kind).toBe('error');
   });
