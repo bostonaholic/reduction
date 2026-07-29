@@ -135,55 +135,61 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
     return 1;
   }
 
-  // The post-redirect URL, matching what location.href gives the extension.
-  let recipe = inferTree(raw, res.url);
+  // Inference through rendering is guarded as one unit: any throw out of a
+  // hostile tree (a RangeError from renderText's canvas refusal, a stack
+  // overflow the extraction caps failed to prevent) is an operational
+  // failure, same class as an oversized body, and must surface as a one-line
+  // reason rather than an uncaught stack trace. Rendering lands in a local
+  // and is written after the try, so a synchronous EPIPE from stdout is not
+  // misread as a pipeline failure — index.ts maps that to exit 0.
+  let output: string;
+  try {
+    // The post-redirect URL, matching what location.href gives the extension.
+    let recipe = inferTree(raw, res.url);
 
-  if (args.claude && apiKey) {
-    if (recipe.confidence >= CLAUDE_THRESHOLD) {
-      stderr.write(
-        `confidence ${recipe.confidence.toFixed(2)} ≥ ${CLAUDE_THRESHOLD} — Claude not needed\n`,
-      );
-    } else {
-      // Mirror the extension's plan B: any Claude failure warns once and
-      // keeps the heuristic result.
-      try {
-        const plan = await callClaude(
-          { apiKey, model: resolveModel(undefined), effort: resolveEffort(undefined), browser: false },
-          raw.title,
-          raw.ingredientLines,
-          raw.stepTexts,
+    if (args.claude && apiKey) {
+      if (recipe.confidence >= CLAUDE_THRESHOLD) {
+        stderr.write(
+          `confidence ${recipe.confidence.toFixed(2)} ≥ ${CLAUDE_THRESHOLD} — Claude not needed\n`,
         );
-        const viaClaude = treeFromPlan(plan, raw, res.url);
-        if (viaClaude.root && viaClaude.confidence >= recipe.confidence) recipe = viaClaude;
-      } catch (err) {
-        // The message can carry a slice of the API response body; strip it
-        // like any other remote text before it reaches the terminal.
-        const reason = stripControls((err as Error).message ?? String(err));
-        stderr.write(`Claude failed, keeping the local result: ${reason}\n`);
+      } else {
+        // Mirror the extension's plan B: any Claude failure warns once and
+        // keeps the heuristic result.
+        try {
+          const plan = await callClaude(
+            { apiKey, model: resolveModel(undefined), effort: resolveEffort(undefined), browser: false },
+            raw.title,
+            raw.ingredientLines,
+            raw.stepTexts,
+          );
+          const viaClaude = treeFromPlan(plan, raw, res.url);
+          if (viaClaude.root && viaClaude.confidence >= recipe.confidence) recipe = viaClaude;
+        } catch (err) {
+          // The message can carry a slice of the API response body; strip it
+          // like any other remote text before it reaches the terminal.
+          const reason = stripControls((err as Error).message ?? String(err));
+          stderr.write(`Claude failed, keeping the local result: ${reason}\n`);
+        }
       }
     }
-  }
 
-  if (!recipe.root) recipe = flatTree(raw, res.url);
-  if (!recipe.root) {
-    stderr.write('Found a recipe but no ingredients to lay out.\n');
-    return 1;
-  }
-
-  const grid = layout(recipe);
-  if (args.format === 'json') {
-    stdout.write(`${JSON.stringify({ recipe, grid, note: confidenceNote(recipe) })}\n`);
-  } else if (args.format === 'html') {
-    stdout.write(`${renderTable(recipe, grid)}\n`);
-  } else {
-    // renderText refuses to allocate an absurd canvas; that refusal is an
-    // operational failure, same class as an oversized body.
-    try {
-      stdout.write(renderText(recipe, grid, deps.width));
-    } catch (err) {
-      stderr.write(`${(err as Error).message}\n`);
+    if (!recipe.root) recipe = flatTree(raw, res.url);
+    if (!recipe.root) {
+      stderr.write('Found a recipe but no ingredients to lay out.\n');
       return 1;
     }
+
+    const grid = layout(recipe);
+    output =
+      args.format === 'json'
+        ? `${JSON.stringify({ recipe, grid, note: confidenceNote(recipe) })}\n`
+        : args.format === 'html'
+          ? `${renderTable(recipe, grid)}\n`
+          : renderText(recipe, grid, deps.width);
+  } catch (err) {
+    stderr.write(`${(err as Error).message ?? err}\n`);
+    return 1;
   }
+  stdout.write(output);
   return 0;
 }

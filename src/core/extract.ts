@@ -14,6 +14,17 @@
 
 import type { ExtractionStrategy, RawRecipe } from './types.js';
 
+/**
+ * A hostile page can declare thousands of ingredients and chained steps; the
+ * tree built from them is as deep as the step list, and the recursive passes
+ * over it (inference, layout, rendering, JSON serialization) overflow the
+ * stack around depth 2000. The largest real recipes are under a hundred of
+ * each, so capping both lists bounds every downstream recursion with an
+ * order of magnitude to spare.
+ */
+const MAX_INGREDIENT_LINES = 500;
+const MAX_STEP_TEXTS = 500;
+
 /** Thrown when no strategy found a recipe. Loud, with the reason. */
 export class NoRecipeFound extends Error {
   constructor(message: string) {
@@ -328,7 +339,11 @@ export function extractRecipe(doc: Document): RawRecipe {
       continue;
     }
     if (result && (result.ingredientLines.length > 0 || result.stepTexts.length > 0)) {
-      return result;
+      return {
+        ...result,
+        ingredientLines: result.ingredientLines.slice(0, MAX_INGREDIENT_LINES),
+        stepTexts: result.stepTexts.slice(0, MAX_STEP_TEXTS),
+      };
     }
     attempts.push(`${name} found nothing`);
   }

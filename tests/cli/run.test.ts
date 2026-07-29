@@ -293,6 +293,34 @@ describe('run size cap', () => {
   });
 });
 
+describe('run hostile page bounds', () => {
+  it('renders a deeply-chained recipe without a stack overflow', async () => {
+    // Each step consumes the previous step's output, so the tree is as deep
+    // as the step list. Uncapped, 2000 chained steps overflowed the stack in
+    // the recursive passes over the tree; the extraction caps bound the
+    // depth, and the pipeline guard turns any residual throw into exit 1.
+    const n = 2000;
+    const page = jsonLdPage({
+      '@context': 'https://schema.org',
+      '@type': 'Recipe',
+      name: 'Chain Bomb',
+      recipeIngredient: Array.from({ length: n }, (_, i) => `1 cup item${i}`),
+      recipeInstructions: Array.from({ length: n }, (_, i) => ({
+        '@type': 'HowToStep',
+        text: `Stir in the item${i}.`,
+      })),
+    });
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(page));
+    const { deps, stdout, stderr } = makeDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    expect(stderr.text).toBe('');
+    expect(JSON.parse(stdout.text).recipe.title).toBe('Chain Bomb');
+  });
+});
+
 describe('run timeout', () => {
   it('aborts after 30 s, reports timeout, and exits 1', async () => {
     vi.useFakeTimers();

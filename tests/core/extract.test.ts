@@ -37,6 +37,31 @@ describe('plainText control characters', () => {
   });
 });
 
+describe('extractRecipe size caps', () => {
+  it('caps ingredient and step counts so a hostile page cannot build an unbounded tree', () => {
+    const html = [
+      '<!doctype html><html><head><script type="application/ld+json">',
+      JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Recipe',
+        name: 'Bomb',
+        recipeIngredient: Array.from({ length: 2000 }, (_, i) => `1 cup item${i}`),
+        recipeInstructions: Array.from({ length: 2000 }, (_, i) => ({
+          '@type': 'HowToStep',
+          text: `Stir in the item${i}.`,
+        })),
+      }),
+      '</script></head><body></body></html>',
+    ].join('');
+    const doc = new JSDOM(html).window.document;
+
+    const raw = extractRecipe(doc);
+
+    expect(raw.ingredientLines).toHaveLength(500);
+    expect(raw.stepTexts).toHaveLength(500);
+  });
+});
+
 describe('extractRecipe control characters', () => {
   it('never lets an escape sequence through any extracted field', () => {
     const html = [
