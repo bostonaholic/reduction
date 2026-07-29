@@ -14,9 +14,12 @@ describe('truncateToWidth', () => {
   });
 
   it('trims a too-wide text and appends an ellipsis so the result fits', () => {
-    const result = truncateToWidth('http://golden.local/a-very-long-path.html', 100, width);
-    expect(result.endsWith('…')).toBe(true);
-    expect(width(result)).toBeLessThanOrEqual(100);
+    // Pinned to the exact maximal fit — at 10px/char into 100px, that is the
+    // 9-char prefix plus the ellipsis. A looser assertion would also pass for
+    // a degenerate implementation returning a bare '…'.
+    expect(truncateToWidth('http://golden.local/a-very-long-path.html', 100, width)).toBe(
+      'http://go…',
+    );
   });
 
   it('returns an empty string for empty input', () => {
