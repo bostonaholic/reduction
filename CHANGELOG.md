@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-29
+
 ### Added
 
 - Render any recipe page as a tabular diagram — ingredients as rows, operations
@@ -25,4 +27,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Write a plural unit when a recipe calls for more than one — "2 cloves garlic",
   not "2 clove garlic". (#5)
 
-[Unreleased]: https://github.com/bostonaholic/reduction/commits/main
+[Unreleased]: https://github.com/bostonaholic/reduction/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/bostonaholic/reduction/releases/tag/v0.1.0
