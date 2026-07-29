@@ -1,10 +1,15 @@
 /**
- * Bundle the extension into dist/.
+ * Bundle the extension and the CLI into dist/.
  *
  *   node build.mjs [--watch]
  *
  * esbuild only, no framework. Content scripts cannot be ES modules, so that
  * entry is bundled as an IIFE; everything else ships as a module.
+ *
+ * This script also runs as the package's `prepare` hook, so a broken build
+ * fails `npm install` / `npm ci` as an install failure. CI's explicit build
+ * step stays anyway — it is the readable signal of *what* broke, not a
+ * redundancy to drop.
  */
 
 import { cp, mkdir, rm } from 'node:fs/promises';
