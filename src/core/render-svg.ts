@@ -11,6 +11,7 @@
  */
 
 import { layoutPixels } from './pixel-layout.js';
+import type { PixelLayout } from './pixel-layout.js';
 import type { Grid } from './types.js';
 
 const BORDER = '#3d8b40';
@@ -26,8 +27,8 @@ function escapeXml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export function renderSvg(grid: Grid): string {
-  const geo = layoutPixels(grid);
+/** `geo` lets a caller that already measured the grid skip a second pass. */
+export function renderSvg(grid: Grid, geo: PixelLayout = layoutPixels(grid)): string {
   const width = Math.ceil(geo.width);
   const height = Math.ceil(geo.height);
 

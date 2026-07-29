@@ -11,6 +11,7 @@
  * tests/cli/run.test.ts.
  */
 
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { layout } from '../../src/core/layout.js';
 import { layoutPixels } from '../../src/core/pixel-layout.js';
@@ -18,6 +19,12 @@ import { pngScale, renderPng } from '../../src/cli/render-png.js';
 import type { Ingredient, Recipe, RecipeNode } from '../../src/core/types.js';
 
 const MAX_PIXELS = 64 * 2 ** 20;
+
+/** The shipped font, passed explicitly: renderPng's default path is
+ * dist-relative and does not resolve from src/cli/ under the test runner. */
+const FONT_FILE = fileURLToPath(
+  new URL('../../assets/fonts/LiberationSans-Regular.ttf', import.meta.url),
+);
 
 // A variable specifier keeps the optional package out of static resolution:
 // the package is optional, and these tests must skip, not error, when it is
@@ -92,7 +99,7 @@ describe.skipIf(!resvgAvailable)('renderPng rasterization', () => {
   const grid = layout(recipeWith('Tiny Bake', op('bake', op('mix', ing('flour'), ing('sugar')))));
 
   it('produces PNG magic bytes with IHDR dimensions at 2× the layout', async () => {
-    const { bytes, scale } = await renderPng(grid);
+    const { bytes, scale } = await renderPng(grid, undefined, FONT_FILE);
     expect(scale).toBe(2);
     expect(Array.from(bytes.slice(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -123,7 +130,7 @@ describe.skipIf(!resvgAvailable)('renderPng rasterization', () => {
       }
     };
 
-    const { bytes } = await renderPng(grid, async () => ({ Resvg: Capturing }) as never);
+    const { bytes } = await renderPng(grid, async () => ({ Resvg: Capturing }) as never, FONT_FILE);
     expect(bytes.length).toBeGreaterThan(8);
     expect(bitmap, 'renderPng must render through the injected module').toBeDefined();
 

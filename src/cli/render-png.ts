@@ -3,9 +3,10 @@
  *
  * Rasterizes renderSvg's output with @resvg/resvg-js — the one module
  * allowed to touch that native optional dependency, imported lazily so
- * text/json/html/svg runs never pay for it. `loadResvg` is the injection
- * seam: run() passes it through RunDeps, so tests stub the module and the
- * failure paths without the native package installed.
+ * text/json/html/svg runs never pay for it. `loadResvg` and `fontFile` are
+ * the injection seams: run() passes both through RunDeps, so tests stub the
+ * module and the failure paths without the native package installed, and
+ * supply the font from the source layout the test runner executes in.
  *
  * The shipped Liberation Sans face is mandatory: with loadSystemFonts off
  * and no fontFiles, resvg renders boxes with no text and zero errors
@@ -52,37 +53,41 @@ export function loadResvg(): Promise<ResvgModule> {
 }
 
 /**
- * The shipped font, resolved relative to this module: from dist/cli.mjs the
- * asset sits one level up (the font stays out of dist/); from
- * src/cli/ under the test runner it sits two up. Missing on both counts
- * (a bundle copied out of the repo) throws with the path named, which the
- * guarded render block in run() turns into exit 1.
+ * The shipped font, resolved relative to the built bundle: from dist/cli.mjs
+ * the asset sits one level up (the font stays out of dist/). Deliberately
+ * the only path probed — a fallback candidate resolved from other layouts
+ * would land on a sibling of the checkout, where anyone able to write next
+ * to the repo could plant a TTF. Callers running off the dist layout (the
+ * test runner executes this module from src/cli/) pass their own path via
+ * renderPng's fontFile parameter instead. Missing (a bundle copied out of
+ * its checkout) throws with the path named — absolute, because the reader's
+ * problem is finding what was probed on their disk — which the guarded
+ * render block in run() turns into exit 1.
  */
-function fontPath(): string {
-  const candidates = [
-    '../assets/fonts/LiberationSans-Regular.ttf',
-    '../../assets/fonts/LiberationSans-Regular.ttf',
-  ].map((relative) => fileURLToPath(new URL(relative, import.meta.url)));
-  const found = candidates.find(existsSync);
-  if (!found) {
-    throw new Error(`font not found at ${candidates[0]} (is the bundle outside its repo checkout?)`);
+function defaultFontPath(): string {
+  const path = fileURLToPath(
+    new URL('../assets/fonts/LiberationSans-Regular.ttf', import.meta.url),
+  );
+  if (!existsSync(path)) {
+    throw new Error(`font not found at ${path} (is the bundle outside its repo checkout?)`);
   }
-  return found;
+  return path;
 }
 
 /** Rasterize the diagram; `scale` is the applied s_png (2 unless clamped). */
 export async function renderPng(
   grid: Grid,
   load: () => Promise<ResvgModule> = loadResvg,
+  fontFile: string = defaultFontPath(),
 ): Promise<{ bytes: Uint8Array; scale: number }> {
   const { Resvg } = await load();
-  const { width, height } = layoutPixels(grid);
-  const scale = pngScale(Math.ceil(width), Math.ceil(height));
-  const renderer = new Resvg(renderSvg(grid), {
+  const geo = layoutPixels(grid);
+  const scale = pngScale(Math.ceil(geo.width), Math.ceil(geo.height));
+  const renderer = new Resvg(renderSvg(grid, geo), {
     fitTo: { mode: 'zoom', value: scale },
     font: {
       loadSystemFonts: false,
-      fontFiles: [fontPath()],
+      fontFiles: [fontFile],
       defaultFontFamily: 'Liberation Sans',
     },
   });

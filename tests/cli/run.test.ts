@@ -12,6 +12,7 @@
  * URL dispatcher they inject, and assert on both.
  */
 
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ResvgModule } from '../../src/cli/render-png.js';
 import { run } from '../../src/cli/run.js';
@@ -456,6 +457,11 @@ function binarySink() {
   };
 }
 
+/** The shipped font from the source layout; the built bundle resolves its own. */
+const FONT_FILE = fileURLToPath(
+  new URL('../../assets/fonts/LiberationSans-Regular.ttf', import.meta.url),
+);
+
 function makeFormatDeps(
   fetch: (...args: any[]) => any,
   options: { tty?: boolean; loadResvg?: () => Promise<ResvgModule> } = {},
@@ -470,6 +476,7 @@ function makeFormatDeps(
     width: 100,
     stdoutIsTTY: options.tty ?? false,
     loadResvg: options.loadResvg,
+    fontFile: FONT_FILE,
   };
   return { deps, stdout, stderr };
 }

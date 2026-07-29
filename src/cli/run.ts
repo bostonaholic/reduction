@@ -81,6 +81,12 @@ export interface RunDeps {
    * in the fake, not as a TypeError at `new Resvg`.
    */
   loadResvg?: () => Promise<ResvgModule>;
+  /**
+   * Path to the TTF renderPng embeds; injected because the default
+   * resolves relative to the built bundle, a layout the test runner does
+   * not execute from.
+   */
+  fontFile?: string;
 }
 
 export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
@@ -264,7 +270,7 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
 
     const grid = layout(recipe);
     if (args.format === 'png') {
-      const { bytes, scale } = await renderPng(grid, loadResvg);
+      const { bytes, scale } = await renderPng(grid, loadResvg, deps.fontFile);
       // The area clamp pulled the raster under the 2× default; say so
       // rather than shipping a silently smaller image.
       if (scale < 2) {

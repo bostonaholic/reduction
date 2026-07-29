@@ -30,6 +30,11 @@ const TEXT_RGB = '0.09 0.13 0.10';
  * (~42,246px wide) s_pdf ≈ 0.34 and 15px text lands near 5px — a smudge,
  * but an honest one: the caller reports the applied scale. Deliberately no
  * lower floor. The invariant: the MediaBox equals the post-scale geometry.
+ * One edge of that: the short side scales with the drawing, so a hostile
+ * table with a past-4800:1 aspect ratio (~9M characters in one cell) puts
+ * it under the 3pt minimum page size strict viewers enforce — accepted;
+ * a floor would break the invariant, and the artifact is already
+ * unreadable at that shape.
  */
 const MAX_PAGE_POINTS = 14_400;
 
