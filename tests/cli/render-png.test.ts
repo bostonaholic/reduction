@@ -62,11 +62,15 @@ function countDarkPixels(
   y0: number,
   y1: number,
 ): number {
+  // Read `pixels` once: resvg's getter copies the whole RGBA buffer on every
+  // access, so reading it per scanned pixel multiplied the scan into
+  // gigabytes of copying — enough to blow the test budget on a 2-core CI
+  // runner.
+  const px = bitmap.pixels;
   let dark = 0;
   for (let y = y0; y < y1; y++) {
     for (let x = 0; x < bitmap.width; x++) {
       const at = (y * bitmap.width + x) * 4;
-      const px = bitmap.pixels;
       if (px[at] < 100 && px[at + 1] < 100 && px[at + 2] < 100) dark++;
     }
   }

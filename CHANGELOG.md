@@ -42,13 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   500 items, rather than presenting a truncated diagram as complete — in the
   extension and the CLI alike.
 
-### Changed
-
-- Wide CLI diagrams shrink toward the overlay's 1180px width instead of
-  stretching to their banner text, so a long-banner recipe reads like the
-  overlay at its widest. Columns never shrink below their minimum widths, so
-  a many-column recipe stays legible and simply goes over the target.
-
 ### Security
 
 - Text displayed from a recipe page is stripped of control and bidi override

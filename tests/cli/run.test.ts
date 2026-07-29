@@ -17,6 +17,32 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ResvgModule } from '../../src/cli/render-png.js';
 import { run } from '../../src/cli/run.js';
 
+/**
+ * A page carrying this marker makes the mocked JSDOM constructor throw the
+ * RangeError a genuinely over-nested page produces. run.ts's parse guard is
+ * proven at the seam because the genuine input is not portable: whether
+ * ~16,000 nested divs overflow inside jsdom depends on the runner's stack
+ * budget — under V8's default ~1 MiB stack they overflow after seconds of
+ * parsing, but under a larger budget the same page grinds on for minutes and
+ * then parses fine. The genuine input lives in the opt-in stress test below;
+ * every marker-free page in this file reaches the real JSDOM untouched.
+ */
+const PARSE_BOMB = 'reduction-test:jsdom-parse-bomb';
+vi.mock('jsdom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('jsdom')>();
+  class ParseBombJSDOM extends actual.JSDOM {
+    constructor(...args: ConstructorParameters<typeof actual.JSDOM>) {
+      // The literal repeats PARSE_BOMB: vi.mock hoists this factory above
+      // the const, so referencing it here would hit the TDZ.
+      if (typeof args[0] === 'string' && args[0].includes('reduction-test:jsdom-parse-bomb')) {
+        throw new RangeError('Maximum call stack size exceeded');
+      }
+      super(...args);
+    }
+  }
+  return { ...actual, JSDOM: ParseBombJSDOM };
+});
+
 const PAGE_URL = 'https://example.test/brownies';
 
 function jsonLdPage(recipe: object): string {
@@ -380,14 +406,13 @@ describe('run hostile page bounds', () => {
     expect(recipe.banners).toContain('showing the first 500 of 600 steps');
   });
 
-  // jsdom chews on the nesting for a while before overflowing; allow it.
-  it('reports a page too deeply nested for jsdom as unparseable, without a stack trace', { timeout: 30_000 }, async () => {
-    // jsdom recurses per ancestor while building the tree, so ~16,000 nested
-    // divs (well under the byte cap) overflow the stack inside the JSDOM
-    // constructor itself. That must surface as the one-line operational
-    // failure, not an uncaught RangeError dumping paths to stderr.
-    const n = 16_000;
-    const page = `<!doctype html><html><body>${'<div>'.repeat(n)}x${'</div>'.repeat(n)}</body></html>`;
+  it('reports a page whose parse throws as unparseable, without a stack trace', async () => {
+    // The RangeError is injected at the JSDOM constructor via the module
+    // mock above (see PARSE_BOMB for why the genuine over-nested input is
+    // not portable). What this pins is run.ts's guard around `new JSDOM`:
+    // a throw during parsing must surface as the one-line operational
+    // failure, never as an uncaught RangeError dumping paths to stderr.
+    const page = `<!doctype html><html><body><p>${PARSE_BOMB}</p></body></html>`;
     const fetchPage = vi.fn().mockResolvedValue(pageResponse(page));
     const { deps, stdout, stderr } = makeDeps(fetchPage);
 
@@ -397,6 +422,30 @@ describe('run hostile page bounds', () => {
     expect(stderr.text).toBe('could not parse the page\n');
     expect(stdout.text).toBe('');
   });
+
+  // The genuine over-nested page, opt-in only (REDUCTION_STRESS=1): whether
+  // it overflows at all depends on the runner's stack budget — see
+  // PARSE_BOMB. Where it does overflow, jsdom chews on the nesting for a
+  // while first, and a loaded 2-core CI runner stretched that past 30 s.
+  it.runIf(process.env.REDUCTION_STRESS)(
+    'overflows jsdom on a genuinely over-nested page and reports it as unparseable',
+    { timeout: 120_000 },
+    async () => {
+      // jsdom recurses per ancestor while building the tree, so ~16,000
+      // nested divs (well under the byte cap) overflow the stack inside the
+      // JSDOM constructor itself under V8's default stack.
+      const n = 16_000;
+      const page = `<!doctype html><html><body>${'<div>'.repeat(n)}x${'</div>'.repeat(n)}</body></html>`;
+      const fetchPage = vi.fn().mockResolvedValue(pageResponse(page));
+      const { deps, stdout, stderr } = makeDeps(fetchPage);
+
+      const exit = await run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+
+      expect(exit).toBe(1);
+      expect(stderr.text).toBe('could not parse the page\n');
+      expect(stdout.text).toBe('');
+    },
+  );
 });
 
 describe('run timeout', () => {
