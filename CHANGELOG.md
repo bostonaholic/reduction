@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Badge cards whose self-check finds a structural or faithfulness problem as
   "low" confidence, naming the finding — coverage alone no longer decides the
-  badge. (#N)
+  badge. Those failures now also escalate to Claude even above 60% confidence,
+  and the more truthful candidate can win the selection at lower coverage. (#N)
 
 ### Added
 

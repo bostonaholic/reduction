@@ -90,8 +90,10 @@ This is the hard part, and it runs as a three-tier ladder:
    stack of pending outputs tracks work in progress; a step consumes it when it
    says so ("stir into the batter"), when its verb implies it ("add"), or when
    it introduced no new ingredients and must therefore be acting on something.
-2. **Claude** (only below 60% confidence, only with a key you supply in the
-   options page). Structured outputs cannot express a recursive schema, so the
+2. **Claude** (when local parsing is uncertain — low confidence, or the
+   self-check found a structural or faithfulness problem — only with a key you
+   supply in the options page). Structured outputs cannot express a recursive
+   schema, so the
    model returns a *flat* plan — steps referencing ingredients and earlier steps
    by index — and `src/core/plan.ts` builds the tree from it. That keeps the
    whole Claude path testable without a network call. The model and its effort

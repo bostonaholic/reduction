@@ -7,8 +7,8 @@
  */
 
 import { NoRecipeFound, extractRecipe } from '../core/extract.js';
-import { CLAUDE_THRESHOLD } from '../core/escalate.js';
-import { gradeByTier, type Finding, type Tier } from '../core/grade.js';
+import { pickBetter, shouldEscalate, type Graded } from '../core/escalate.js';
+import { gradeByTier, type Finding } from '../core/grade.js';
 import { flatTree, inferTree } from '../core/infer.js';
 import { layout } from '../core/layout.js';
 import { treeFromPlan, type Plan } from '../core/plan.js';
@@ -168,7 +168,7 @@ function downloadBlob(filename: string, blob: Blob): void {
 }
 
 /** Grade a card for the badge. A grading crash degrades to "no findings". */
-function tryGrade(recipe: Recipe, raw: RawRecipe): Record<Tier, Finding[]> | null {
+function tryGrade(recipe: Recipe, raw: RawRecipe): Graded | null {
   try {
     return gradeByTier(recipe, raw);
   } catch {
@@ -215,14 +215,11 @@ async function run(): Promise<void> {
   // are reassigned together at every point recipe changes hands.
   let graded = tryGrade(recipe, raw);
 
-  if (recipe.confidence < CLAUDE_THRESHOLD) {
+  if (shouldEscalate(recipe.confidence, graded)) {
     const plan = await askClaude(raw.title, raw.ingredientLines, raw.stepTexts);
     if (plan) {
       const viaClaude = treeFromPlan(plan, raw, location.href);
-      if (viaClaude.root && viaClaude.confidence >= recipe.confidence) {
-        recipe = viaClaude;
-        graded = tryGrade(viaClaude, raw);
-      }
+      ({ recipe, graded } = pickBetter(recipe, graded, viaClaude, tryGrade(viaClaude, raw)));
     }
   }
 
