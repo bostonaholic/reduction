@@ -22,7 +22,7 @@ async function requestBodyFor(
   vi.stubGlobal('fetch', fetchMock);
 
   await callClaude(
-    { apiKey: 'sk-ant-test', model: resolveModel(modelId), effort },
+    { apiKey: 'sk-ant-test', model: resolveModel(modelId), effort, browser: true },
     'Brownies',
     ['4 oz butter'],
     ['Melt it.'],
@@ -68,6 +68,34 @@ describe('resolveEffort', () => {
   });
 });
 
+/** Captures the request headers callClaude would put on the wire. */
+async function requestHeadersFor(browser: boolean): Promise<Record<string, string>> {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ content: [{ type: 'text', text: '{"banners":[],"steps":[]}' }] }),
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  const settings = { apiKey: 'sk-ant-test', model: DEFAULT_MODEL, effort: DEFAULT_EFFORT, browser };
+  await callClaude(settings, 'Brownies', ['4 oz butter'], ['Melt it.']);
+
+  return fetchMock.mock.calls[0][1].headers;
+}
+
+describe('callClaude browser header', () => {
+  it('sends the direct-browser-access opt-in when the caller is a browser', async () => {
+    const headers = await requestHeadersFor(true);
+    expect(headers['anthropic-dangerous-direct-browser-access']).toBe('true');
+  });
+
+  it('omits the browser-only header when the caller is not a browser', async () => {
+    // Sending a browser-only opt-in from Node is misleading and fragile; the
+    // CLI constructs its settings with browser: false.
+    const headers = await requestHeadersFor(false);
+    expect(headers).not.toHaveProperty('anthropic-dangerous-direct-browser-access');
+  });
+});
+
 describe('callClaude', () => {
   it('sends the chosen model', async () => {
     const body = await requestBodyFor('claude-sonnet-5');
@@ -101,5 +129,79 @@ describe('callClaude', () => {
       const body = await requestBodyFor(model.id);
       expect(body.output_config.format.type).toBe('json_schema');
     }
+  });
+
+  it('clips each prompt line, so one huge line cannot fill the context window', async () => {
+    // The extraction caps bound line counts, not line lengths — without a
+    // per-line clip a single multi-megabyte "ingredient" would reach the API
+    // intact and spend the user's budget on garbage.
+    const huge = `1 cup sugar, then ${'x'.repeat(100_000)}`;
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ content: [{ type: 'text', text: '{"banners":[],"steps":[]}' }] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await callClaude(
+      { apiKey: 'sk-ant-test', model: DEFAULT_MODEL, effort: DEFAULT_EFFORT, browser: false },
+      huge,
+      [huge, '4 oz butter'],
+      [huge],
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const prompt: string = body.messages[0].content;
+    expect(prompt).not.toContain(huge);
+    expect(prompt).toContain('1 cup sugar, then ');
+    expect(prompt).toContain('4 oz butter'); // Short lines pass untouched.
+    // Title and ingredient clip at 300, the step at 2000, plus scaffolding.
+    expect(prompt.length).toBeLessThan(3000);
+  });
+
+  it('passes a real-world long step through intact', async () => {
+    // The longest step across the captured site fixtures is 778 characters
+    // (Bon Appétit). A bound that clips it degrades the exact pages the
+    // Claude tier exists to rescue, so a step of that size must survive.
+    const longStep = `Fold in the chocolate, then rest the dough. ${'Stir gently. '.repeat(58)}`;
+    expect(longStep.length).toBeGreaterThan(750);
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ content: [{ type: 'text', text: '{"banners":[],"steps":[]}' }] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await callClaude(
+      { apiKey: 'sk-ant-test', model: DEFAULT_MODEL, effort: DEFAULT_EFFORT, browser: false },
+      'Brownies',
+      ['4 oz butter'],
+      [longStep],
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.messages[0].content).toContain(longStep);
+  });
+
+  it('clips on code points, never leaving a lone surrogate', async () => {
+    // A cut that lands inside a surrogate pair would put a mangled character
+    // on the wire; the clip must slice whole code points.
+    const emoji = '🍰'.repeat(5000); // 10,000 UTF-16 units, all astral.
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ content: [{ type: 'text', text: '{"banners":[],"steps":[]}' }] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await callClaude(
+      { apiKey: 'sk-ant-test', model: DEFAULT_MODEL, effort: DEFAULT_EFFORT, browser: false },
+      emoji,
+      [emoji],
+      [emoji],
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const prompt: string = body.messages[0].content;
+    expect(prompt.length).toBeLessThan(emoji.length);
+    // A high surrogate not followed by a low surrogate is a mangled cut.
+    expect(prompt).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
   });
 });

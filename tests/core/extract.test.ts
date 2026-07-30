@@ -1,0 +1,127 @@
+/**
+ * Tests for text sanitization in extraction.
+ *
+ * Page text reaches terminals and agent transcripts verbatim, so plainText
+ * must drop C0/C1 control characters — an ANSI escape sequence in a recipe
+ * field could repaint the screen or forge output. Whitespace controls
+ * (\t \n \r \v \f) are exercised too: they collapse to single spaces.
+ */
+
+import { JSDOM } from 'jsdom';
+import { describe, expect, it } from 'vitest';
+import { extractRecipe, plainText } from '../../src/core/extract.js';
+
+const ESC = '\u001b';
+const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/;
+
+describe('plainText control characters', () => {
+  it('strips ANSI escape sequences', () => {
+    expect(plainText(`mix ${ESC}[2J${ESC}[31mred${ESC}[0m dye`)).toBe('mix [2J[31mred[0m dye');
+  });
+
+  it('strips C0 controls, DEL, and C1 controls', () => {
+    expect(plainText('a\u0000b\u0007c\u007Fd\u009Be')).toBe('abcde');
+  });
+
+  it('strips control characters smuggled in as numeric entities', () => {
+    expect(plainText('safe &#27;[2J &#x1b;[0m text')).toBe('safe [2J [0m text');
+  });
+
+  it('collapses whitespace controls to single spaces', () => {
+    expect(plainText('one\ttwo\r\nthree')).toBe('one two three');
+  });
+
+  it('keeps the word boundary at a VT or FF, rather than gluing words', () => {
+    expect(plainText('1 cup\fsugar')).toBe('1 cup sugar');
+    expect(plainText('mix\vwell')).toBe('mix well');
+  });
+});
+
+describe('plainText bidi and zero-width code points', () => {
+  it('strips the zero-width space and bidi controls that can reorder or hide text', () => {
+    expect(plainText('a\u200Bb\u200Ec\u200Fd')).toBe('abcd');
+    expect(plainText('x\u202Ay\u202Ez\u2066w\u2069v')).toBe('xyzwv');
+  });
+
+  it('preserves ZWNJ and ZWJ, which Persian, Hindi, and emoji text require', () => {
+    // Persian "نان\u200Cها" (breads) joins its plural suffix with a ZWNJ; Hindi
+    // conjuncts and emoji sequences rely on ZWJ. Stripping either corrupts
+    // legitimate recipe text.
+    const persian = 'نان\u200Cها';
+    const emojiCook = '\u{1F469}\u200D\u{1F373}';
+    expect(plainText(persian)).toBe(persian);
+    expect(plainText(emojiCook)).toBe(emojiCook);
+  });
+});
+
+describe('extractRecipe size caps', () => {
+  it('caps ingredient and step counts so a hostile page cannot build an unbounded tree', () => {
+    const html = [
+      '<!doctype html><html><head><script type="application/ld+json">',
+      JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Recipe',
+        name: 'Bomb',
+        recipeIngredient: Array.from({ length: 2000 }, (_, i) => `1 cup item${i}`),
+        recipeInstructions: Array.from({ length: 2000 }, (_, i) => ({
+          '@type': 'HowToStep',
+          text: `Stir in the item${i}.`,
+        })),
+      }),
+      '</script></head><body></body></html>',
+    ].join('');
+    const doc = new JSDOM(html).window.document;
+
+    const raw = extractRecipe(doc);
+
+    expect(raw.ingredientLines).toHaveLength(500);
+    expect(raw.stepTexts).toHaveLength(500);
+    // Truncation is announced, not silent: the tree constructors turn these
+    // into leading banner rows on both the extension and the CLI.
+    expect(raw.truncationBanners).toEqual([
+      'showing the first 500 of 2000 ingredients',
+      'showing the first 500 of 2000 steps',
+    ]);
+  });
+
+  it('carries no truncation notice when nothing was dropped', () => {
+    const html = [
+      '<!doctype html><html><head><script type="application/ld+json">',
+      JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Recipe',
+        name: 'Small',
+        recipeIngredient: ['1 cup flour'],
+        recipeInstructions: [{ '@type': 'HowToStep', text: 'Mix the flour.' }],
+      }),
+      '</script></head><body></body></html>',
+    ].join('');
+    const doc = new JSDOM(html).window.document;
+
+    expect(extractRecipe(doc).truncationBanners).toBeUndefined();
+  });
+});
+
+describe('extractRecipe control characters', () => {
+  it('never lets an escape sequence through any extracted field', () => {
+    const html = [
+      `<!doctype html><html><head><title>Backup ${ESC}[2J Title</title>`,
+      '<script type="application/ld+json">',
+      JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Recipe',
+        name: `Evil ${ESC}]52;c;payload${ESC}\\ Brownies`,
+        recipeIngredient: [`1 cup ${ESC}[8m hidden sugar`],
+        recipeInstructions: [{ '@type': 'HowToStep', text: `Stir ${ESC}[31m well.` }],
+      }),
+      '</script></head><body></body></html>',
+    ].join('');
+    const doc = new JSDOM(html).window.document;
+
+    const raw = extractRecipe(doc);
+
+    const fields = [raw.title, ...raw.ingredientLines, ...raw.stepTexts];
+    for (const field of fields) expect(field).not.toMatch(CONTROL);
+    expect(raw.title).toBe('Evil ]52;c;payload\\ Brownies');
+  });
+});

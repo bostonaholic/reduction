@@ -105,17 +105,45 @@ Rules:
   has them. "mix", "fold in", "bake 350°F (175°C) 30 to 40 min".
 - Exactly one step should end up unconsumed: the final one.`;
 
-function buildPrompt(title: string, ingredients: string[], steps: string[]): string {
-  const ingredientList = ingredients.map((line, i) => `${i}: ${line}`).join('\n');
-  const stepList = steps.map((text, i) => `${i}: ${text}`).join('\n');
-  return `Recipe: ${title}\n\nIngredients (index: text)\n${ingredientList}\n\nInstructions (index: text)\n${stepList}`;
+/**
+ * The extraction caps bound how many lines reach this prompt, but not how
+ * long each is — a hostile page could pack megabytes into one line and fill
+ * the context window on the user's key. The bounds below are measured, not
+ * assumed: across the 15 captured site fixtures (113 step texts), the
+ * longest real step is 778 characters (Bon Appétit), the longest ingredient
+ * line 131, and the longest title 53. 2000 clears every observed step with
+ * ~2.5x headroom — long prose steps are exactly what this tier exists to
+ * parse, so the step bound must not clip them. 300 leaves >2x headroom for
+ * ingredient lines and titles.
+ */
+const MAX_STEP_CHARS = 2000;
+const MAX_LINE_CHARS = 300;
+
+/** Bound on code points, not UTF-16 units, so the cut cannot split a
+ * surrogate pair and send a lone surrogate in the prompt. */
+function clip(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return [...text].slice(0, max).join('');
 }
 
-/** Everything the user chose in the options page that shapes the request. */
+function buildPrompt(title: string, ingredients: string[], steps: string[]): string {
+  const ingredientList = ingredients
+    .map((line, i) => `${i}: ${clip(line, MAX_LINE_CHARS)}`)
+    .join('\n');
+  const stepList = steps.map((text, i) => `${i}: ${clip(text, MAX_STEP_CHARS)}`).join('\n');
+  return `Recipe: ${clip(title, MAX_LINE_CHARS)}\n\nIngredients (index: text)\n${ingredientList}\n\nInstructions (index: text)\n${stepList}`;
+}
+
+/**
+ * What shapes the request: the options-page choices (key, model, effort)
+ * plus one fact only the caller knows — whether it is running in a browser.
+ */
 export interface ClaudeSettings {
   apiKey: string;
   model: ModelOption;
   effort: Effort;
+  /** True in the extension, false in the CLI; gates the browser-only header. */
+  browser: boolean;
 }
 
 /** Ask Claude for the plan. Throws with a usable message on any failure. */
@@ -125,15 +153,16 @@ export async function callClaude(
   ingredients: string[],
   steps: string[],
 ): Promise<Plan> {
-  const { apiKey, model, effort } = settings;
+  const { apiKey, model, effort, browser } = settings;
   const response = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
-      // Required when calling the API from a browser context.
-      'anthropic-dangerous-direct-browser-access': 'true',
+      // Required when calling the API from a browser context; sending a
+      // browser-only opt-in from Node would be misleading, so it is gated.
+      ...(browser ? { 'anthropic-dangerous-direct-browser-access': 'true' } : {}),
     },
     body: JSON.stringify({
       model: model.id,

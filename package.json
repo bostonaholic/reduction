@@ -2,10 +2,14 @@
   "name": "reduction",
   "version": "0.1.0",
   "private": true,
-  "description": "Chrome extension that renders any recipe page as a tabular diagram: ingredients as rows, operations spanning the rows they consume",
+  "description": "Chrome extension and CLI that render any recipe page as a tabular diagram: ingredients as rows, operations spanning the rows they consume",
   "type": "module",
+  "bin": {
+    "reduction": "dist/cli.mjs"
+  },
   "scripts": {
     "build": "node build.mjs",
+    "prepare": "node build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -18,13 +22,15 @@
     "e2e:golden": "playwright test tests/e2e/install.spec.ts tests/e2e/golden.spec.ts",
     "e2e:live": "playwright test tests/e2e/live-sites.spec.ts"
   },
+  "dependencies": {
+    "jsdom": "^29.1.1"
+  },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
     "@types/chrome": "^0.2.2",
     "@types/jsdom": "^28.0.3",
     "@types/node": "^26.1.2",
     "esbuild": "^0.28.1",
-    "jsdom": "^29.1.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },

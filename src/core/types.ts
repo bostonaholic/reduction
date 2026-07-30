@@ -49,6 +49,12 @@ export interface RawRecipe {
   stepTexts: string[];
   yield?: string;
   strategy: ExtractionStrategy;
+  /**
+   * Notices produced during extraction — currently only that a list hit its
+   * size cap. Every tree constructor surfaces them as leading banner rows,
+   * so a truncated diagram is never presented as complete.
+   */
+  truncationBanners?: string[];
 }
 
 /** A fully processed recipe, ready to lay out. */

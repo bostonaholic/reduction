@@ -49,6 +49,8 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
         apiKey,
         model: resolveModel(stored[STORAGE_KEYS.model] as string | undefined),
         effort: resolveEffort(stored[STORAGE_KEYS.effort] as string | undefined),
+        // The service worker calls the API from a browser context.
+        browser: true,
       };
 
       try {

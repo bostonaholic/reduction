@@ -1,9 +1,9 @@
 # Reduction
 
-A Chrome extension that turns any recipe page into a [Cooking For
-Engineers](https://www.cookingforengineers.com/) style tabular diagram —
-ingredients down the left, operations spanning the rows they consume, the whole
-thing readable as a timeline.
+A Chrome extension and command-line tool that turn any recipe page into a
+[Cooking For Engineers](https://www.cookingforengineers.com/) style tabular
+diagram — ingredients down the left, operations spanning the rows they
+consume, the whole thing readable as a timeline.
 
 ![The Reduction overlay on a recipe page: the recipe rendered as a table — ingredients down the left, operations spanning the rows they consume — floating above the dimmed page.](docs/screenshot.png)
 
@@ -33,6 +33,50 @@ Same **Load unpacked** steps, but select `dist/`.
 
 Click the toolbar button on any recipe page (or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>).
 Click it again, or press <kbd>Esc</kbd>, to dismiss.
+
+## Command line
+
+The same pipeline runs from a terminal. The package is private and
+unpublished, so the entry path is `npm link` — `npm install` must run first
+anyway (jsdom is a runtime dependency), and its `prepare` hook builds
+`dist/cli.mjs`, so the bin target exists by the time `npm link` symlinks it.
+(`npm ci --ignore-scripts` skips that `prepare` build; run `npm run build`
+yourself afterwards.)
+
+```sh
+npm install
+npm link
+reduction 'https://example.com/some-recipe'
+```
+
+Or skip the link and run the bundle directly: `node dist/cli.mjs '<url>'`.
+Single-quote the URL — recipe URLs are third-party text, and an unquoted one
+lets any shell metacharacters in it execute as commands.
+
+Formats: `--format text` (default) prints a box-drawing table at the
+terminal's width (100 columns when piped); `--format json` prints the
+recipe, grid, and confidence note for scripts and agents; `--format html`
+prints the same markup the extension renders — unstyled without the
+extension's `overlay.css` around it.
+
+`--claude` opts in to the Claude tier when the local parse is
+low-confidence. It reads `ANTHROPIC_API_KEY` and spends your API budget,
+so it is never automatic. `--help` prints usage.
+
+For anyone scripting against the CLI, the exit code is part of the
+contract: `0` success, `1` operational failure (reason on stderr), `2`
+usage error.
+
+Two limitations to know about. Sites that block scripted requests return
+403s to the CLI's plain `fetch` where the extension rides a real browser
+session — expect exit 1 with the reason on stderr. And the CLI fetches
+whatever URL it is given with your network access, localhost and private
+addresses included; it does not filter them.
+
+A Claude Code session rooted in this checkout discovers the CLI through the
+Skill at `.claude/skills/reduction/SKILL.md`. Other agents: copy that
+directory into your own skill location — the Skill reaches only sessions
+rooted here, and `npm install` never delivers it.
 
 ## How it works
 
@@ -67,7 +111,7 @@ Row order comes from a depth-first traversal of the leaves, which is what
 guarantees every operation's inputs land in a *contiguous* block of rows — the
 only thing a `rowspan` can cover.
 
-The pipeline is four pure functions plus a scraper:
+The pipeline is five pure functions plus a scraper:
 
 | Stage | Module | Contract |
 | --- | --- | --- |
@@ -75,7 +119,8 @@ The pipeline is four pure functions plus a scraper:
 | normalize | `src/core/ingredient.ts`, `units.ts` | ingredient lines → quantities, units, metric equivalents |
 | infer | `src/core/infer.ts` | flat steps → tree + confidence |
 | layout | `src/core/layout.ts` | tree → positioned cells with spans |
-| render | `src/core/render.ts` | cells → HTML |
+| render | `src/core/render.ts` | cells → HTML (the extension and `--format html`) |
+| render text | `src/core/render-text.ts` | grid → box-drawing text (the CLI's default output) |
 
 None of them touch `chrome.*`, so the entire product logic is unit-testable in
 Node. The extension shell is a thin adapter over the top.
@@ -208,3 +253,6 @@ Known rough edges:
   a limit to how much that can compress.
 - Volume-to-weight conversion uses a density table covering common baking
   ingredients. Anything not in it prints millilitres rather than guessing grams.
+- Ingredient and step lists are capped at 500 items each — an order of
+  magnitude beyond any real recipe, a bound against hostile pages. A capped
+  diagram says so in a banner row ("showing the first 500 of N ingredients").
