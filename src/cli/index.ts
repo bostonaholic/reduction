@@ -1,13 +1,14 @@
 /**
  * Render a recipe page as a tabular diagram, from the command line.
  *
- *   node dist/cli.mjs <url> [--format text|json|html] [--claude] [--help]
+ *   node dist/cli.mjs <url> [--format text|json|html|svg|png|pdf] [--claude] [--help]
  *
  * Thin shell over parseArgs and run: this file only binds the real process
  * globals; everything testable lives in args.ts and run.ts.
  */
 
 import { parseArgs, USAGE } from './args.js';
+import { loadResvg } from './render-png.js';
 import { run } from './run.js';
 
 // A consumer that closes stdout early (`… | head`) took what it wanted;
@@ -39,6 +40,8 @@ if (parsed.kind === 'help') {
       env: process.env,
       // Piped output has no terminal width, so fall back to 100 columns.
       width: process.stdout.isTTY ? process.stdout.columns : 100,
+      stdoutIsTTY: process.stdout.isTTY === true,
+      loadResvg,
     });
   } catch (err) {
     // The synchronous half of the EPIPE contract above.

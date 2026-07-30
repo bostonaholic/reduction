@@ -53,11 +53,22 @@ Or skip the link and run the bundle directly: `node dist/cli.mjs '<url>'`.
 Single-quote the URL — recipe URLs are third-party text, and an unquoted one
 lets any shell metacharacters in it execute as commands.
 
-Formats: `--format text` (default) prints a box-drawing table at the
-terminal's width (100 columns when piped); `--format json` prints the
-recipe, grid, and confidence note for scripts and agents; `--format html`
-prints the same markup the extension renders — unstyled without the
-extension's `overlay.css` around it.
+Formats:
+
+- `--format text` (default) — a box-drawing table at the terminal's width
+  (100 columns when piped).
+- `--format json` — the recipe, grid, and confidence note, for scripts and
+  agents.
+- `--format html` — the same markup the extension renders, unstyled
+  without the extension's `overlay.css` around it.
+- `--format svg` — the same diagram the extension exports, as a standalone
+  SVG image; the confidence note goes to stderr, never into the artifact.
+- `--format png` — that diagram rasterized at 2×. Binary output, so
+  redirect it to a file (`> out.png`); a terminal refuses it. PNG needs
+  the optional `@resvg/resvg-js` dependency, so installs with
+  `--omit=optional` lose only that format.
+- `--format pdf` — the diagram as a one-page PDF with selectable text.
+  Binary like PNG, so redirect it to a file.
 
 `--claude` opts in to the Claude tier when the local parse is
 low-confidence. It reads `ANTHROPIC_API_KEY` and spends your API budget,
@@ -65,7 +76,11 @@ so it is never automatic. `--help` prints usage.
 
 For anyone scripting against the CLI, the exit code is part of the
 contract: `0` success, `1` operational failure (reason on stderr), `2`
-usage error.
+usage error. A successful run can still write to stderr: svg, png, and
+pdf put the confidence note there to keep the artifact clean, and a very
+large diagram scaled down — to bound PNG memory or to fit the 14,400pt
+PDF page limit — adds a `scaled to <n>×` notice. Those lines are
+advisories accompanying exit 0, not failures.
 
 Two limitations to know about. Sites that block scripted requests return
 403s to the CLI's plain `fetch` where the extension rides a real browser
@@ -111,7 +126,7 @@ Row order comes from a depth-first traversal of the leaves, which is what
 guarantees every operation's inputs land in a *contiguous* block of rows — the
 only thing a `rowspan` can cover.
 
-The pipeline is five pure functions plus a scraper:
+The pipeline is a scraper feeding a chain of pure functions:
 
 | Stage | Module | Contract |
 | --- | --- | --- |
@@ -121,6 +136,9 @@ The pipeline is five pure functions plus a scraper:
 | layout | `src/core/layout.ts` | tree → positioned cells with spans |
 | render | `src/core/render.ts` | cells → HTML (the extension and `--format html`) |
 | render text | `src/core/render-text.ts` | grid → box-drawing text (the CLI's default output) |
+| pixel layout | `src/core/pixel-layout.ts`, `font-metrics.ts` | grid → pixel geometry — the one measurement every visual renderer reads |
+| render svg | `src/core/render-svg.ts` | grid → standalone SVG (`--format svg`; `--format png` rasterizes it via `@resvg/resvg-js` in `src/cli/render-png.ts`) |
+| render pdf | `src/core/render-pdf.ts` | grid → one-page PDF with selectable text (`--format pdf`) |
 
 None of them touch `chrome.*`, so the entire product logic is unit-testable in
 Node. The extension shell is a thin adapter over the top.
@@ -150,6 +168,14 @@ This is the hard part, and it runs as a three-tier ladder:
 
 The overlay labels its own confidence, so a bad parse is visible rather than
 quietly wrong.
+
+## Bundled third-party assets
+
+The repo ships Liberation Sans (`assets/fonts/LiberationSans-Regular.ttf`)
+so PNG rasterization draws real text on every platform; it is licensed
+under the SIL Open Font License 1.1, included alongside it as
+`assets/fonts/OFL.txt`. The optional `@resvg/resvg-js` rasterizer is
+MPL-2.0, in an otherwise MIT project.
 
 ## Privacy and permissions
 
@@ -251,6 +277,10 @@ Known rough edges:
 - Very long recipes stay very wide. A 26-step layer cake produces a 17-column
   table; logistics verbs are folded into the operation they serve, but there is
   a limit to how much that can compress.
+- The visual CLI formats (svg, png, pdf) shrink wide tables toward a 1180px
+  target but never squeeze a column below its minimum width, so a many-column
+  recipe legitimately overshoots — 13 columns render 1254px wide. Scripts
+  should read the artifact's own dimensions rather than assume a fixed canvas.
 - Volume-to-weight conversion uses a density table covering common baking
   ingredients. Anything not in it prints millilitres rather than guessing grams.
 - Ingredient and step lists are capped at 500 items each — an order of

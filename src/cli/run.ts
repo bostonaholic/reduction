@@ -15,9 +15,13 @@ import { flatTree, inferTree } from '../core/infer.js';
 import { layout } from '../core/layout.js';
 import { treeFromPlan } from '../core/plan.js';
 import { confidenceNote, renderTable } from '../core/render.js';
+import { renderPdf } from '../core/render-pdf.js';
+import { renderSvg } from '../core/render-svg.js';
 import { renderText } from '../core/render-text.js';
 import { callClaude, resolveEffort, resolveModel } from '../llm/claude.js';
 import type { OutputFormat } from './args.js';
+import { loadResvg as defaultLoadResvg, renderPng } from './render-png.js';
+import type { ResvgModule } from './render-png.js';
 import { stripControls } from './sanitize.js';
 
 /** Browser-mimicking request headers, the shape tools/capture-fixtures.mjs uses. */
@@ -55,7 +59,7 @@ export interface CliResponse {
 }
 
 interface Sink {
-  write(chunk: string): unknown;
+  write(chunk: string | Uint8Array): unknown;
 }
 
 export interface RunDeps {
@@ -68,6 +72,21 @@ export interface RunDeps {
   env: Record<string, string | undefined>;
   /** Rendering width in columns; computed by the entry point, never here. */
   width: number;
+  /** Whether stdout is a terminal; binary formats refuse to write to one. */
+  stdoutIsTTY?: boolean;
+  /**
+   * Loads @resvg/resvg-js for png; injected so tests stub the native
+   * module without installing it. Typed as the module slice renderPng
+   * consumes, so a loader returning the wrong shape fails the type check
+   * in the fake, not as a TypeError at `new Resvg`.
+   */
+  loadResvg?: () => Promise<ResvgModule>;
+  /**
+   * Path to the TTF renderPng embeds; injected because the default
+   * resolves relative to the built bundle, a layout the test runner does
+   * not execute from.
+   */
+  fontFile?: string;
 }
 
 export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
@@ -79,6 +98,52 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   if (args.claude && !apiKey) {
     stderr.write('--claude requires ANTHROPIC_API_KEY in the environment\n');
     return 2;
+  }
+
+  // Binary formats refuse a terminal before any network work: dumping raw
+  // bytes into a TTY only garbles it, and shell redirection is the remedy
+  // — the same usage-error class as the key check above.
+  if ((args.format === 'png' || args.format === 'pdf') && deps.stdoutIsTTY) {
+    stderr.write(
+      `refusing to write ${args.format.toUpperCase()} bytes to a terminal; redirect to a file\n`,
+    );
+    return 2;
+  }
+
+  // resvg is an optional dependency, silent when its install is skipped, so
+  // the png path checks it loads before the fetch. A not-found module — the
+  // wrapper itself (ERR_MODULE_NOT_FOUND) or its per-platform native
+  // binding, whose inner require rethrows MODULE_NOT_FOUND with a Require
+  // stack of absolute local paths in the message — has one remedy, a
+  // reinstall, so both are usage errors and neither message is echoed.
+  // Anything else (wrong-ABI binary, interrupted install) -> operational
+  // failure, one stripped line — a native load error carries absolute paths
+  // and loader text — with the reinstall hint subordinate to the real error.
+  // Chosen deliberately: a dlopen error (ERR_DLOPEN_FAILED) names the
+  // install directory, and the path stays in the message — it points at the
+  // binary to remove, on a disk the reader installed the tool to. The test
+  // suite pins the path as intentionally present.
+  const loadResvg = deps.loadResvg ?? defaultLoadResvg;
+  if (args.format === 'png') {
+    try {
+      await loadResvg();
+    } catch (err) {
+      const error = err as Error & { code?: string };
+      const message = String(error.message ?? err);
+      if (
+        (error.code === 'ERR_MODULE_NOT_FOUND' || error.code === 'MODULE_NOT_FOUND') &&
+        message.includes('@resvg/resvg-js')
+      ) {
+        stderr.write(
+          '--format png needs the optional @resvg/resvg-js dependency; reinstall without --omit=optional, or run: npm install @resvg/resvg-js\n',
+        );
+        return 2;
+      }
+      stderr.write(
+        `${stripControls(message)} — reinstalling may fix it: npm install @resvg/resvg-js\n`,
+      );
+      return 1;
+    }
   }
 
   // Redirects are followed (the fetch default); the final res.url becomes the
@@ -170,7 +235,7 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
   // reason rather than an uncaught stack trace. Rendering lands in a local
   // and is written after the try, so a synchronous EPIPE from stdout is not
   // misread as a pipeline failure — index.ts maps that to exit 0.
-  let output: string;
+  let output: string | Uint8Array;
   try {
     // The post-redirect URL, matching what location.href gives the extension.
     let recipe = inferTree(raw, res.url);
@@ -208,12 +273,36 @@ export async function run(args: RunArgs, deps: RunDeps): Promise<number> {
     }
 
     const grid = layout(recipe);
-    output =
-      args.format === 'json'
-        ? `${JSON.stringify({ recipe, grid, note: confidenceNote(recipe) })}\n`
-        : args.format === 'html'
-          ? `${renderTable(recipe, grid)}\n`
-          : renderText(recipe, grid, deps.width);
+    if (args.format === 'png') {
+      const { bytes, scale } = await renderPng(grid, loadResvg, deps.fontFile);
+      // The area clamp pulled the raster under the 2× default; say so
+      // rather than shipping a silently smaller image.
+      if (scale < 2) {
+        stderr.write(`scaled to ${scale.toFixed(2)}x (not the default 2x) to bound memory\n`);
+      }
+      output = bytes;
+    } else if (args.format === 'pdf') {
+      const { bytes, scale } = renderPdf(grid);
+      // The 14,400pt page limit shrank the drawing; say so.
+      if (scale < 1) {
+        stderr.write(`scaled to ${scale.toFixed(2)}x to fit the 14,400pt PDF page limit\n`);
+      }
+      output = bytes;
+    } else {
+      output =
+        args.format === 'json'
+          ? `${JSON.stringify({ recipe, grid, note: confidenceNote(recipe) })}\n`
+          : args.format === 'html'
+            ? `${renderTable(recipe, grid)}\n`
+            : args.format === 'svg'
+              ? `${renderSvg(grid)}\n`
+              : renderText(recipe, grid, deps.width);
+    }
+    // The image artifact is the table only; the confidence
+    // note still reaches the user on stderr so a bad parse stays visible.
+    if (args.format === 'svg' || args.format === 'png' || args.format === 'pdf') {
+      stderr.write(`${confidenceNote(recipe).text}\n`);
+    }
   } catch (err) {
     stderr.write(`${stripControls((err as Error).message ?? String(err))}\n`);
     return 1;

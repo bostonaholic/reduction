@@ -12,8 +12,36 @@
  * URL dispatcher they inject, and assert on both.
  */
 
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ResvgModule } from '../../src/cli/render-png.js';
 import { run } from '../../src/cli/run.js';
+
+/**
+ * A page carrying this marker makes the mocked JSDOM constructor throw the
+ * RangeError a genuinely over-nested page produces. run.ts's parse guard is
+ * proven at the seam because the genuine input is not portable: whether
+ * ~16,000 nested divs overflow inside jsdom depends on the runner's stack
+ * budget — under V8's default ~1 MiB stack they overflow after seconds of
+ * parsing, but under a larger budget the same page grinds on for minutes and
+ * then parses fine. The genuine input lives in the opt-in stress test below;
+ * every marker-free page in this file reaches the real JSDOM untouched.
+ */
+const PARSE_BOMB = 'reduction-test:jsdom-parse-bomb';
+vi.mock('jsdom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('jsdom')>();
+  class ParseBombJSDOM extends actual.JSDOM {
+    constructor(...args: ConstructorParameters<typeof actual.JSDOM>) {
+      // The literal repeats PARSE_BOMB: vi.mock hoists this factory above
+      // the const, so referencing it here would hit the TDZ.
+      if (typeof args[0] === 'string' && args[0].includes('reduction-test:jsdom-parse-bomb')) {
+        throw new RangeError('Maximum call stack size exceeded');
+      }
+      super(...args);
+    }
+  }
+  return { ...actual, JSDOM: ParseBombJSDOM };
+});
 
 const PAGE_URL = 'https://example.test/brownies';
 
@@ -378,14 +406,13 @@ describe('run hostile page bounds', () => {
     expect(recipe.banners).toContain('showing the first 500 of 600 steps');
   });
 
-  // jsdom chews on the nesting for a while before overflowing; allow it.
-  it('reports a page too deeply nested for jsdom as unparseable, without a stack trace', { timeout: 30_000 }, async () => {
-    // jsdom recurses per ancestor while building the tree, so ~16,000 nested
-    // divs (well under the byte cap) overflow the stack inside the JSDOM
-    // constructor itself. That must surface as the one-line operational
-    // failure, not an uncaught RangeError dumping paths to stderr.
-    const n = 16_000;
-    const page = `<!doctype html><html><body>${'<div>'.repeat(n)}x${'</div>'.repeat(n)}</body></html>`;
+  it('reports a page whose parse throws as unparseable, without a stack trace', async () => {
+    // The RangeError is injected at the JSDOM constructor via the module
+    // mock above (see PARSE_BOMB for why the genuine over-nested input is
+    // not portable). What this pins is run.ts's guard around `new JSDOM`:
+    // a throw during parsing must surface as the one-line operational
+    // failure, never as an uncaught RangeError dumping paths to stderr.
+    const page = `<!doctype html><html><body><p>${PARSE_BOMB}</p></body></html>`;
     const fetchPage = vi.fn().mockResolvedValue(pageResponse(page));
     const { deps, stdout, stderr } = makeDeps(fetchPage);
 
@@ -395,6 +422,30 @@ describe('run hostile page bounds', () => {
     expect(stderr.text).toBe('could not parse the page\n');
     expect(stdout.text).toBe('');
   });
+
+  // The genuine over-nested page, opt-in only (REDUCTION_STRESS=1): whether
+  // it overflows at all depends on the runner's stack budget — see
+  // PARSE_BOMB. Where it does overflow, jsdom chews on the nesting for a
+  // while first, and a loaded 2-core CI runner stretched that past 30 s.
+  it.runIf(process.env.REDUCTION_STRESS)(
+    'overflows jsdom on a genuinely over-nested page and reports it as unparseable',
+    { timeout: 120_000 },
+    async () => {
+      // jsdom recurses per ancestor while building the tree, so ~16,000
+      // nested divs (well under the byte cap) overflow the stack inside the
+      // JSDOM constructor itself under V8's default stack.
+      const n = 16_000;
+      const page = `<!doctype html><html><body>${'<div>'.repeat(n)}x${'</div>'.repeat(n)}</body></html>`;
+      const fetchPage = vi.fn().mockResolvedValue(pageResponse(page));
+      const { deps, stdout, stderr } = makeDeps(fetchPage);
+
+      const exit = await run({ url: PAGE_URL, format: 'json', claude: false }, deps);
+
+      expect(exit).toBe(1);
+      expect(stderr.text).toBe('could not parse the page\n');
+      expect(stdout.text).toBe('');
+    },
+  );
 });
 
 describe('run timeout', () => {
@@ -431,5 +482,268 @@ describe('run redirect', () => {
 
     expect(exit).toBe(0);
     expect(JSON.parse(stdout.text).recipe.sourceUrl).toBe(finalUrl);
+  });
+});
+
+// ————— vector formats: svg, png, pdf —————
+
+/** Collects string and binary writes alike, standing in for process.stdout. */
+function binarySink() {
+  const chunks: (string | Uint8Array)[] = [];
+  return {
+    write(chunk: string | Uint8Array): boolean {
+      chunks.push(chunk);
+      return true;
+    },
+    get chunks() {
+      return chunks;
+    },
+    get text() {
+      return chunks
+        .map((chunk) => (typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)))
+        .join('');
+    },
+  };
+}
+
+/** The shipped font from the source layout; the built bundle resolves its own. */
+const FONT_FILE = fileURLToPath(
+  new URL('../../assets/fonts/LiberationSans-Regular.ttf', import.meta.url),
+);
+
+function makeFormatDeps(
+  fetch: (...args: any[]) => any,
+  options: { tty?: boolean; loadResvg?: () => Promise<ResvgModule> } = {},
+) {
+  const stdout = binarySink();
+  const stderr = sink();
+  const deps = {
+    fetch,
+    stdout,
+    stderr,
+    env: {},
+    width: 100,
+    stdoutIsTTY: options.tty ?? false,
+    loadResvg: options.loadResvg,
+    fontFile: FONT_FILE,
+  };
+  return { deps, stdout, stderr };
+}
+
+const PNG_BYTES = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+/** A stand-in @resvg/resvg-js module: fixed bytes, no native code. */
+function fakeResvgModule() {
+  class FakeResvg {
+    constructor(_svg: string, _options?: unknown) {}
+    render() {
+      return { asPng: () => PNG_BYTES };
+    }
+  }
+  return { Resvg: FakeResvg };
+}
+
+/** n chained steps, each consuming the last: column count grows with n. */
+function chainPage(n: number): string {
+  return jsonLdPage({
+    '@context': 'https://schema.org',
+    '@type': 'Recipe',
+    name: 'Chain Reaction',
+    recipeIngredient: Array.from({ length: n }, (_, i) => `1 cup item${i}`),
+    recipeInstructions: Array.from({ length: n }, (_, i) => ({
+      '@type': 'HowToStep',
+      text: `Stir in the item${i}.`,
+    })),
+  });
+}
+
+describe('run --format svg', () => {
+  it('writes the SVG diagram to stdout with a trailing newline and the note to stderr only', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'svg', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    expect(stdout.text).toMatch(/^<svg/);
+    expect(stdout.text).toMatch(/<\/svg>\n$/);
+    expect(stdout.text).toContain('butter');
+    // The artifact is the table only — no title, no note.
+    expect(stdout.text).not.toContain('Test Brownies');
+    expect(stderr.text).toMatch(/ingredients matched a step|listed in order/);
+    expect(stdout.text).not.toContain(stderr.text.trim());
+  });
+});
+
+describe('run binary formats refuse a TTY', () => {
+  it.each(['png', 'pdf'] as const)(
+    'refuses --format %s on a TTY with exit 2 before fetching',
+    async (format) => {
+      const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+      const { deps, stdout, stderr } = makeFormatDeps(fetchPage, {
+        tty: true,
+        loadResvg: async () => fakeResvgModule(),
+      });
+
+      const exit = await run({ url: PAGE_URL, format, claude: false }, deps);
+
+      expect(exit).toBe(2);
+      expect(fetchPage).not.toHaveBeenCalled();
+      expect(stderr.text).toMatch(/refus/i);
+      expect(stderr.text).toMatch(/redirect/i);
+      expect(stdout.chunks).toHaveLength(0);
+    },
+  );
+});
+
+describe('run --format png through the loadResvg seam', () => {
+  it('pipes the rasterized bytes to stdout intact when stdout is not a TTY', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const loadResvg = vi.fn(async () => fakeResvgModule());
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, { loadResvg });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    const binary = stdout.chunks.find((c): c is Uint8Array => c instanceof Uint8Array);
+    expect(binary, 'png bytes must reach the sink as a Uint8Array').toBeDefined();
+    expect(Array.from(binary!)).toEqual(Array.from(PNG_BYTES));
+    expect(stderr.text).toMatch(/ingredients matched a step|listed in order/);
+  });
+
+  it('exits 2 before the fetch with the reinstall remedy when resvg is not installed', async () => {
+    const missing = Object.assign(new Error("Cannot find package '@resvg/resvg-js'"), {
+      code: 'ERR_MODULE_NOT_FOUND',
+    });
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, {
+      loadResvg: () => Promise.reject(missing),
+    });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(2);
+    expect(fetchPage).not.toHaveBeenCalled();
+    expect(stderr.text).toContain('npm install @resvg/resvg-js');
+    expect(stderr.text).toMatch(/omit=optional/);
+    expect(stdout.chunks).toHaveLength(0);
+  });
+
+  it('exits 2 with the path-free remedy when only the platform binding is missing', async () => {
+    // The wrapper resolves but its per-platform package does not (a
+    // node_modules copied across architectures, say): the inner require
+    // rethrows MODULE_NOT_FOUND, dragging a Require stack of absolute local
+    // paths into the message. Same remedy as the wrapper missing outright,
+    // so the same usage-error class — and none of those paths may print.
+    const missing = Object.assign(
+      new Error(
+        "Cannot find module '@resvg/resvg-js-darwin-arm64'\nRequire stack:\n- /home/someone/checkout/node_modules/@resvg/resvg-js/js-binding.js",
+      ),
+      { code: 'MODULE_NOT_FOUND' },
+    );
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, {
+      loadResvg: () => Promise.reject(missing),
+    });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(2);
+    expect(fetchPage).not.toHaveBeenCalled();
+    expect(stderr.text).toContain('npm install @resvg/resvg-js');
+    expect(stderr.text).not.toContain('/home/someone');
+    expect(stderr.text).not.toContain('Require stack');
+    expect(stdout.chunks).toHaveLength(0);
+  });
+
+  it('exits 1 with a stripped one-line reason and a reinstall hint when resvg cannot load', async () => {
+    const ESCAPE = String.fromCharCode(27);
+    const broken = new Error(
+      `Failed to load native binding${ESCAPE}[31m at /home/someone/secret${ESCAPE}[0m`,
+    );
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, {
+      loadResvg: () => Promise.reject(broken),
+    });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(1);
+    expect(fetchPage).not.toHaveBeenCalled();
+    expect(stderr.text).toContain('Failed to load native binding');
+    expect(stderr.text).not.toContain(ESCAPE);
+    expect(stderr.text).toMatch(/reinstall|npm install/i);
+    expect(stderr.text).not.toMatch(/\n\s+at /); // one line, never a stack
+    expect(stdout.chunks).toHaveLength(0);
+  });
+
+  it('keeps the install path in an ERR_DLOPEN_FAILED message, by design', async () => {
+    // A wrong-ABI or corrupt native binary echoes dlopen text naming the
+    // install directory. run.ts keeps that path deliberately — it points at
+    // the binary to remove, on a disk the reader installed the tool to.
+    // This assertion pins the choice so a future sanitize pass cannot
+    // silently change the contract.
+    const binding = '/home/someone/node_modules/@resvg/resvg-js-darwin-x64/resvgjs.darwin-x64.node';
+    const broken = Object.assign(
+      new Error(`dlopen(${binding}, 0x0001): tried: '${binding}' (not a mach-o file)`),
+      { code: 'ERR_DLOPEN_FAILED' },
+    );
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, {
+      loadResvg: () => Promise.reject(broken),
+    });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(1);
+    expect(fetchPage).not.toHaveBeenCalled();
+    expect(stderr.text).toContain(binding); // intentionally present
+    expect(stderr.text).toMatch(/reinstall|npm install/i);
+    expect(stderr.text).not.toMatch(/\n\s+at /); // one line, never a stack
+    expect(stdout.chunks).toHaveLength(0);
+  });
+
+  it('advises on stderr when the area clamp pulls the scale below 2×', async () => {
+    // 550 chained steps (capped at 500) build a ~500-column, ~500-row grid
+    // whose 2× raster would blow the 64 Mpx bound: the applied scale drops
+    // below 2 and run() must say so, naming the value.
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(chainPage(550)));
+    const loadResvg = vi.fn(async () => fakeResvgModule());
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage, { loadResvg });
+
+    const exit = await run({ url: PAGE_URL, format: 'png', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    expect(stdout.chunks.some((c) => c instanceof Uint8Array)).toBe(true);
+    expect(stderr.text).toMatch(/scal/i);
+    expect(stderr.text).toMatch(/\b0\.\d+/);
+  });
+});
+
+describe('run --format pdf', () => {
+  it('pipes PDF bytes to stdout and the note to stderr when piped', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(CONFIDENT_PAGE));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'pdf', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    const binary = stdout.chunks.find((c): c is Uint8Array => c instanceof Uint8Array);
+    expect(binary, 'pdf bytes must reach the sink as a Uint8Array').toBeDefined();
+    const header = String.fromCharCode(...binary!.slice(0, 5));
+    expect(header).toBe('%PDF-');
+    expect(stderr.text).toMatch(/ingredients matched a step|listed in order/);
+  });
+
+  it('advises on stderr when the 14,400pt page limit scales the drawing down', async () => {
+    const fetchPage = vi.fn().mockResolvedValue(pageResponse(chainPage(550)));
+    const { deps, stdout, stderr } = makeFormatDeps(fetchPage);
+
+    const exit = await run({ url: PAGE_URL, format: 'pdf', claude: false }, deps);
+
+    expect(exit).toBe(0);
+    expect(stdout.chunks.some((c) => c instanceof Uint8Array)).toBe(true);
+    expect(stderr.text).toMatch(/scal/i);
+    expect(stderr.text).toMatch(/\b0\.\d+/);
   });
 });

@@ -13,10 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "low" confidence, naming the finding — coverage alone no longer decides the
   badge. Those failures now also escalate to Claude even above 60% confidence,
   and the more truthful candidate can win the selection at lower coverage. (#12)
+- Wide CLI diagrams shrink toward the overlay's 1180px width instead of
+  stretching to their banner text, so a long-banner recipe reads like the
+  overlay at its widest. Columns never shrink below their minimum widths, so
+  a many-column recipe stays legible and simply goes over the target.
 
 ### Added
 
 - Include the recipe's URL in the generated recipe card. (#9)
+- `--format svg` in the CLI: the same diagram the extension exports, as a
+  standalone SVG image, rendered without a browser. The confidence note goes
+  to stderr so the artifact stays clean.
+- `--format png` in the CLI: the extension's 2× PNG export, rasterized with
+  the optional `@resvg/resvg-js` dependency and the bundled Liberation Sans
+  face. Binary output must be redirected to a file — a terminal refuses it —
+  and very large diagrams are scaled down (with a notice on stderr) to bound
+  memory.
+- `--format pdf` in the CLI: the diagram as a one-page PDF with selectable,
+  searchable text, written without any PDF library. Diagrams past the
+  14,400pt page limit are scaled to fit, with a notice on stderr.
 - A `reduction` CLI: render any recipe URL as a tabular diagram from the
   terminal, in box-drawing text (default), JSON, or HTML. Install it with
   `npm link`; pass `--claude` to opt in to Claude escalation for

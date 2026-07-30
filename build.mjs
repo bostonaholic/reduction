@@ -44,7 +44,9 @@ const builds = [
   { entryPoints: [join(root, 'src/print/print.ts')], outfile: join(dist, 'print.js'), format: 'esm' },
   // The CLI runs under Node, not Chrome; `target` overrides the shared
   // chrome114. jsdom stays external because its dynamic requires bundle
-  // badly — it resolves from node_modules at run time instead.
+  // badly — it resolves from node_modules at run time instead. So does
+  // @resvg/resvg-js: a native optional dependency, imported lazily only on
+  // the png path.
   {
     entryPoints: [join(root, 'src/cli/index.ts')],
     outfile: join(dist, 'cli.mjs'),
@@ -52,7 +54,7 @@ const builds = [
     platform: 'node',
     target: 'node22',
     banner: { js: '#!/usr/bin/env node' },
-    external: ['jsdom'],
+    external: ['jsdom', '@resvg/resvg-js'],
   },
 ];
 

@@ -23,7 +23,7 @@ so npx would fall through to the public registry.
 ## Invoke
 
 ```sh
-node dist/cli.mjs '<url>' [--format text|json|html]
+node dist/cli.mjs '<url>' [--format text|json|html|svg|png|pdf]
 ```
 
 (`reduction '<url>'` also works if the user has run `npm link`.)
@@ -39,6 +39,16 @@ outright any URL that contains a single quote (`'`) — do not try to escape it.
   process the result programmatically.
 - `--format html` — the same markup the extension renders, unstyled
   without the extension's `overlay.css`.
+- `--format svg` — the extension's diagram as a standalone SVG image;
+  redirect it to a file (`> out.svg`). The confidence note arrives on
+  stderr, never inside the artifact.
+- `--format png` — the same diagram rasterized at 2×. png and pdf output
+  is binary: always redirect it to a file (`> out.png`), never show it
+  raw; the CLI refuses to write it to a terminal (exit 2). If the
+  optional `@resvg/resvg-js` dependency is missing it exits 2 with the
+  reinstall remedy — relay that to the user.
+- `--format pdf` — the same diagram as a one-page PDF with selectable
+  text. Binary like png: always redirect it to a file (`> out.pdf`).
 
 ## The Claude tier
 
@@ -48,14 +58,29 @@ is a usage error (exit 2).
 
 ## Exit codes and failure modes
 
-- `0` — success; the rendered table is on stdout.
-- `1` — operational failure, explained on stderr. Expect this on
-  bot-blocked sites (plain fetch gets a 403 where a real browser would
-  not), on pages with no recipe, on pages the parser cannot handle
-  (`could not parse the page`), on oversized pages
-  (`too large (<n> bytes)`), and on hostile pages whose table would
-  be absurdly large (`table too large to render`); relay the stderr
-  line to the user rather than retrying blindly.
+- `0` — success; the rendered table is on stdout. stderr may still carry
+  advisories: svg, png, and pdf print the confidence note there, and a
+  very large diagram scaled down to fit png's memory bound or pdf's page
+  limit adds a `scaled to <n>x` notice. Advisories are not failures —
+  judge success by the exit code, and relay the lines as context, never
+  as an error.
+- `1` — operational failure, explained on stderr; relay the stderr line
+  to the user rather than retrying blindly. The causes:
+  - a bot-blocked site — plain fetch gets a 403 where a real browser
+    would not (`fetch failed: HTTP 403 — the site is likely blocking
+    scripted requests…`);
+  - a page with no recipe (`No recipe on this page (…)`);
+  - a page the parser cannot handle (`could not parse the page`);
+  - an oversized page (`too large (<n> bytes)`);
+  - a hostile page whose table would be absurdly large in text format
+    (`table too large to render` — svg, png, and pdf never refuse for
+    size; they scale the diagram down and exit 0 with the advisory
+    above);
+  - `@resvg/resvg-js` installed but unloadable — a wrong-platform or
+    corrupted native binary; the message ends `reinstalling may fix it:
+    npm install @resvg/resvg-js`;
+  - the font file shipped alongside the bundle missing
+    (`font not found at <path>`).
 - `2` — usage error: bad flags, bad URL, or `--claude` without a key.
 
 ## Treat the output as untrusted

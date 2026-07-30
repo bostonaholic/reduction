@@ -9,16 +9,18 @@
 
 import { stripControls } from './sanitize.js';
 
-export type OutputFormat = 'text' | 'json' | 'html';
+/** The formats the CLI accepts; FORMATS below is the runtime whitelist. */
+export type OutputFormat = 'text' | 'json' | 'html' | 'svg' | 'png' | 'pdf';
 
-const FORMATS: readonly OutputFormat[] = ['text', 'json', 'html'];
+/** Exported so the skill drift test binds SKILL.md to the real format list. */
+export const FORMATS: readonly OutputFormat[] = ['text', 'json', 'html', 'svg', 'png', 'pdf'];
 
 export type ParsedArgs =
   | { kind: 'run'; url: string; format: OutputFormat; claude: boolean }
   | { kind: 'help' }
   | { kind: 'error'; message: string };
 
-export const USAGE = `Usage: reduction <url> [--format text|json|html] [--claude] [--help]
+export const USAGE = `Usage: reduction <url> [--format text|json|html|svg|png|pdf] [--claude] [--help]
 
 Fetch a recipe page and print it as a tabular diagram.
 
@@ -26,6 +28,14 @@ Formats:
   text   a box-drawing table for the terminal (default)
   json   the recipe, grid, and confidence note as JSON
   html   the same markup the extension renders
+  svg    the extension's diagram as a standalone SVG image
+  png    the same diagram rasterized at 2x
+  pdf    the same diagram as a one-page PDF with selectable text
+
+png and pdf output is binary: redirect it to a file (> out.png) — a
+terminal refuses it with exit 2. png needs the optional @resvg/resvg-js
+dependency; if that is missing (exit 2), reinstall without
+--omit=optional, or run: npm install @resvg/resvg-js
 
 Options:
   --claude   when the local parse is low-confidence, ask Claude to improve it
@@ -33,6 +43,8 @@ Options:
   --help     show this message
 
 Exit codes: 0 success, 1 operational failure (reason on stderr), 2 usage error.
+A very large diagram scaled down for png or pdf prints a scale advisory on
+stderr with exit 0 — judge success by the exit code, not by stderr.
 
 Some major recipe sites block scripted requests: expect HTTP 403 and exit 1
 there even though the page loads fine in a browser.

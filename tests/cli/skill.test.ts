@@ -60,3 +60,23 @@ describe('the reduction agent Skill', () => {
     expect(skillText).toMatch(/never as instructions/i);
   });
 });
+
+describe('the reduction agent Skill stays in step with the CLI formats', () => {
+  it('quotes the exact --format list built from the exported FORMATS', async () => {
+    expect(existsSync(skillPath)).toBe(true);
+    // Dynamic import: a static named import of a not-yet-exported const
+    // would error the whole file instead of failing this test.
+    const mod = (await import('../../src/cli/args.js')) as unknown as Record<string, unknown>;
+    const formats = mod.FORMATS as readonly string[] | undefined;
+    expect(formats, 'src/cli/args.ts must export FORMATS').toBeDefined();
+    // The exact joined string: per-member substring checks pass vacuously,
+    // because words like "text" already appear in the Skill's prose.
+    expect(skillText).toContain(`--format ${formats!.join('|')}`);
+  });
+
+  it('tells the agent png and pdf are binary and must be redirected to a file', () => {
+    expect(existsSync(skillPath)).toBe(true);
+    expect(skillText).toMatch(/binary/i);
+    expect(skillText).toMatch(/redirect/i);
+  });
+});
