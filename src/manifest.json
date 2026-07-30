@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Reduction",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Turn any recipe page into a tabular diagram — ingredients as rows, steps spanning the rows they use.",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["https://api.anthropic.com/*"],
